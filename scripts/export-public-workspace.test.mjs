@@ -260,6 +260,7 @@ test("offline mode copies exactly the declared public workspace surface", () => 
     "LICENSE",
     "README.md",
     "SECURITY.md",
+    "TRADEMARKS.md",
     "apps",
     "docs",
     "eslint.config.mjs",
@@ -288,10 +289,18 @@ test("offline mode copies exactly the declared public workspace surface", () => 
     readFileSync(join(destination, "LICENSE"), "utf8"),
     readFileSync(join(repositoryRoot, "docs/public/LICENSE"), "utf8")
   );
+  assert.equal(
+    readFileSync(join(destination, "TRADEMARKS.md"), "utf8"),
+    readFileSync(join(repositoryRoot, "docs/public/TRADEMARKS.md"), "utf8")
+  );
   for (const app of publicApps) {
     assert.deepEqual(
       readFileSync(join(destination, "apps", app, "public/LICENSE")),
       readFileSync(join(destination, "LICENSE"))
+    );
+    assert.deepEqual(
+      readFileSync(join(destination, "apps", app, "public/TRADEMARKS.md")),
+      readFileSync(join(destination, "TRADEMARKS.md"))
     );
   }
 
@@ -321,6 +330,7 @@ test("offline mode copies exactly the declared public workspace surface", () => 
 
   const publicPackage = JSON.parse(readFileSync(join(destination, "package.json"), "utf8"));
   assert.equal(publicPackage.private, true);
+  assert.equal(publicPackage.license, "SEE LICENSE IN LICENSE");
   assert.equal(publicPackage.scripts["check:public-boundary"], "node scripts/check-public-boundary.mjs --export");
   assert.equal(
     publicPackage.scripts["licenses:check:public"],
@@ -553,6 +563,26 @@ test("the export checker detects public template toolchain drift", () => {
   assert.match(combinedOutput(boundaryCheck), /devDependencies has drifted/i);
 });
 
+test("the export checker detects public template license drift", () => {
+  const destination = join(temporaryRoot, "checker-template-license-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const templatePath = join(destination, "docs/public/package.json");
+  const templatePackage = JSON.parse(readFileSync(templatePath, "utf8"));
+  templatePackage.license = "MIT";
+  writeFileSync(templatePath, `${JSON.stringify(templatePackage, null, 2)}\n`, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /license has drifted/i);
+});
+
 test("the export checker detects public workflow template drift", () => {
   const destination = join(temporaryRoot, "checker-workflow-template-drift");
   const exportResult = runExporter([destination, "--skip-install"]);
@@ -632,6 +662,29 @@ test("the export checker requires byte-identical first-party licenses in every a
 
   assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
   assert.match(combinedOutput(boundaryCheck), /watched-filter\/public\/LICENSE must be byte-for-byte identical/i);
+});
+
+test("the export checker requires byte-identical trademark policies in every app", () => {
+  const destination = join(temporaryRoot, "checker-app-trademark-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  writeFileSync(
+    join(destination, "apps/watched-filter/public/TRADEMARKS.md"),
+    "# Trademark drift\n\nThis deliberately drifted policy must fail the publication gate.\n",
+    "utf8"
+  );
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(
+    combinedOutput(boundaryCheck),
+    /watched-filter\/public\/TRADEMARKS\.md must be byte-for-byte identical/i
+  );
 });
 
 test("the export checker scans binary assets for embedded credentials", () => {

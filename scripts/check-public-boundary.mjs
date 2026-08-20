@@ -61,7 +61,7 @@ const requiredRepositoryFiles = [
   "docs/release-checklist.md"
 ];
 const requiredAppDocuments = ["README.md", "PRIVACY.md", "CHANGELOG.md"];
-const requiredAppLegalDocuments = ["public/LICENSE", "public/THIRD_PARTY_NOTICES.txt"];
+const requiredAppLegalDocuments = ["public/LICENSE", "public/TRADEMARKS.md", "public/THIRD_PARTY_NOTICES.txt"];
 const publicRootScripts = [
   "build:public:extensions",
   "format:check:public",
@@ -98,6 +98,7 @@ const scannerRelativePath = "scripts/check-public-boundary.mjs";
 const workspacePublicFiles = new Set([
   ...requiredRepositoryFiles,
   "docs/public/LICENSE",
+  "docs/public/TRADEMARKS.md",
   "README.md",
   "package.json",
   "docs/chrome-web-store-publishing.md",
@@ -124,6 +125,7 @@ const expectedExportFiles = new Set([
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
   "LICENSE",
+  "TRADEMARKS.md",
   "README.md",
   "SECURITY.md",
   "docs/asset-provenance.md",
@@ -135,6 +137,7 @@ const expectedExportFiles = new Set([
   "docs/public/.prettierignore",
   "docs/public/ci.yml",
   "docs/public/LICENSE",
+  "docs/public/TRADEMARKS.md",
   "docs/public/RELEASE_CHECKLIST.md",
   "docs/public/package.json",
   "docs/public/pnpm-workspace.yaml",
@@ -283,7 +286,7 @@ function checkPublicTemplateManifestDrift() {
     return;
   }
 
-  for (const field of ["packageManager", "engines", "devDependencies"]) {
+  for (const field of ["license", "packageManager", "engines", "devDependencies"]) {
     const rootValue = JSON.stringify(canonicalJson(rootManifest[field]));
     const templateValue = JSON.stringify(canonicalJson(templateManifest[field]));
     if (rootValue !== templateValue) {
@@ -429,6 +432,27 @@ function checkLicenseBoundary() {
   }
 }
 
+function checkTrademarkBoundary() {
+  const sourcePolicyPath = "docs/public/TRADEMARKS.md";
+  const publicPolicyPath = "TRADEMARKS.md";
+  const sourcePolicyExists = existsSync(absolutePath(sourcePolicyPath));
+  const publicPolicyExists = existsSync(absolutePath(publicPolicyPath));
+
+  if (isWorkspaceMode) {
+    checkRequiredFile(sourcePolicyPath, "license");
+  } else {
+    checkRequiredFile(publicPolicyPath, "license");
+    if (sourcePolicyExists && publicPolicyExists) {
+      compareLicenseBytes(sourcePolicyPath, publicPolicyPath);
+    }
+  }
+
+  const canonicalPolicyPath = isWorkspaceMode ? sourcePolicyPath : publicPolicyPath;
+  for (const app of publicApps) {
+    compareLicenseBytes(canonicalPolicyPath, `apps/${app}/public/TRADEMARKS.md`);
+  }
+}
+
 function compareLicenseBytes(expectedPath, actualPath) {
   try {
     const expected = readFileSync(absolutePath(expectedPath));
@@ -452,8 +476,8 @@ function checkManifest(relativePath) {
     addError("manifest", `${relativePath} must set "private": true to prevent accidental registry publication.`);
   }
 
-  if (!isWorkspaceMode && relativePath === "package.json" && manifest.license !== "MIT") {
-    addError("license", 'package.json must declare "license": "MIT" in the public export.');
+  if (!isWorkspaceMode && relativePath === "package.json" && manifest.license !== "SEE LICENSE IN LICENSE") {
+    addError("license", 'package.json must declare "license": "SEE LICENSE IN LICENSE" in the public export.');
   }
 
   return manifest;
@@ -1096,6 +1120,7 @@ checkRootTemplateMappingDrift();
 
 checkComponentAllowlist(files);
 checkLicenseBoundary();
+checkTrademarkBoundary();
 checkDocumentation();
 
 const manifests = new Map();

@@ -30,7 +30,8 @@ pnpm security:audit:prod
 ```
 
 `test:public-export` exercises the Git-backed exporter. `release:check:public` also works in the resulting source snapshot
-without a `.git` directory and verifies all six ZIPs, their license files, and release-critical manifest fields.
+without a `.git` directory and verifies all six ZIPs, their license and trademark files, and release-critical manifest
+fields.
 
 ## Browser smoke tests
 
@@ -57,8 +58,8 @@ still need a focused manual smoke test because third-party markup changes indepe
 ## Release review
 
 - Review manifest permissions, privacy policies, store copy, and data-handling behavior.
-- Review [asset provenance](./asset-provenance.md), [third-party licenses](./third-party-licenses.md), notices, source maps,
-  and the final ZIP contents.
+- Review [asset provenance](./asset-provenance.md), [third-party licenses](./third-party-licenses.md), the root
+  `TRADEMARKS.md` policy, notices, source maps, and the final ZIP contents.
 - Run a dedicated secret scanner over every commit being published and inspect the complete file manifest.
 - Load each unpacked build in a clean browser profile when permissions or browser integration changed.
 - Keep generated builds, local profiles, credentials, personal data, private code, and unrelated Git history out of the

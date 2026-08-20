@@ -76,6 +76,7 @@ const preservedFiles = [
   "scripts/generate-public-license-notices.mjs",
   "scripts/smoke-public-extensions.mjs",
   "docs/public/LICENSE",
+  "docs/public/TRADEMARKS.md",
   "docs/public/README.md",
   "docs/public/package.json",
   "docs/public/pnpm-workspace.yaml",
@@ -86,6 +87,7 @@ const preservedFiles = [
 
 export const ROOT_TEMPLATE_MAPPINGS = [
   ["docs/public/LICENSE", "LICENSE"],
+  ["docs/public/TRADEMARKS.md", "TRADEMARKS.md"],
   ["docs/public/README.md", "README.md"],
   ["docs/public/package.json", "package.json"],
   ["docs/public/pnpm-workspace.yaml", "pnpm-workspace.yaml"],

@@ -3,7 +3,8 @@
 ## Scope and repository boundary
 
 - These instructions apply to the entire repository. A more specific `AGENTS.md` may add stricter rules for its subtree.
-- This is a public, MIT-licensed workspace. The allowed product surface is exactly:
+- This is a public, source-available workspace licensed under PolyForm Shield 1.0.0. The allowed product surface is
+  exactly:
   - `apps/watched-filter`
   - `apps/product-filter`
   - `apps/quick-notes`
@@ -90,8 +91,8 @@
 - Do not commit `.output`, `.wxt`, `node_modules`, coverage, source maps, ZIPs, local browser data, or temporary exports.
 - New dependencies and bundled assets require verified redistribution rights. Update the relevant provenance,
   third-party-license record, notices, and hashes when applicable.
-- Release archives must contain the repository `LICENSE` and current third-party notices, and must not contain secrets,
-  private paths, undeclared fonts/assets, or development-only files.
+- Release archives must contain the repository `LICENSE`, `TRADEMARKS.md`, and current third-party notices, and must not
+  contain secrets, private paths, undeclared fonts/assets, or development-only files.
 - Use `scripts/export-public-workspace.mjs` for publication snapshots and treat any boundary failure or incomplete marker as
   a publication blocker.
 
