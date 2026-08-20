@@ -5,11 +5,11 @@ and before a public release. Inventory and evidence snapshot: 2026-08-19.
 
 ## Evidence status
 
-On 2026-08-19, maintainer Andrews Ribeiro Gomes provided written confirmation during the production-readiness review
-that he personally generated and owns the six PNG masters listed below. This is the retained provenance statement: it
-identifies no third-party source artwork and does not claim a specific generation tool. By directing publication of the
-assets in this MIT-licensed repository, the maintainer licenses the masters and their committed size derivatives under
-the repository's [MIT License](../LICENSE), with no additional asset-specific attribution requirement.
+On 2026-08-19, maintainer Andrews Ribeiro Gomes confirmed that he personally generated and owns the six PNG masters
+listed below. This is the retained provenance statement: it identifies no third-party source artwork and does not claim
+a specific generation tool. By directing publication of the assets in this MIT-licensed repository, the maintainer
+licenses the masters and their committed size derivatives under the repository's [MIT License](../LICENSE), with no
+additional asset-specific attribution requirement.
 
 The internal source history shows that the masters and corresponding public icon sizes entered or changed on
 2026-07-09. Internal commit identifiers are intentionally omitted from this public record because publication uses a
