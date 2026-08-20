@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a reproducible problem in a public extension or shared package.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the project. Remove personal data, browsing history, tokens, and credentials before submitting. Report security vulnerabilities privately using the link in the issue chooser.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - Watched Filter
+        - Product Filter
+        - Quick Notes
+        - Time Zone Helper
+        - Site Reset
+        - Pathswitch
+        - Shared UI
+        - Shared UI Tokens
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Extension version, release tag, or commit SHA where the problem occurs.
+      placeholder: 0.1.0 or abc1234
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: Chrome 140 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and how does it affect you?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Load the extension...
+        2. Open...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or minimal reproduction
+      description: Redact account details, page content, URLs containing identifiers, and all secrets.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I reproduced this on the latest release or default branch.
+          required: true
+        - label: This report does not contain credentials, personal data, or a security vulnerability.
+          required: true

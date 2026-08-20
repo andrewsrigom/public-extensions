@@ -1,0 +1,4 @@
+@import "@browser-extensions/ui/styles.css";
+
+@source "./*.{html,ts,tsx}";
+@source "../../src/**/*.{ts,tsx}";

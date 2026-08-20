@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused improvement to a public extension or shared package.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Target component
+      options:
+        - Watched Filter
+        - Product Filter
+        - Quick Notes
+        - Time Zone Helper
+        - Site Reset
+        - Pathswitch
+        - Shared UI
+        - Shared UI Tokens
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Describe the user need independently of a particular solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Explain the behavior you would like and why it fits this component.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include current workarounds or simpler options where relevant.
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Privacy and permission impact
+      description: Note any new browser permission, host access, stored data, or network request. Write "None" if not applicable.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues and did not find the same request.
+          required: true
+        - label: This request is limited to a component listed in the public project scope.
+          required: true

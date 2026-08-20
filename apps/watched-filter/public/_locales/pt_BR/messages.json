@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Watched Filter",
+    "description": "Nome da extensao."
+  },
+  "extensionDescription": {
+    "message": "Marque titulos ja vistos em streamings e reduza-os visualmente no catalogo.",
+    "description": "Descricao da extensao."
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "watched-filter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "clean": "wxt clean && rm -rf coverage",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "quality": "pnpm typecheck && pnpm test:run && pnpm build",
+    "release:check": "pnpm quality && pnpm zip",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:run": "vitest run",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox"
+  },
+  "dependencies": {
+    "@browser-extensions/ui": "workspace:*",
+    "lucide-react": "^1.23.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3"
+  }
+}

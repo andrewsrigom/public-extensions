@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Watched Filter",
+    "description": "Extension name."
+  },
+  "extensionDescription": {
+    "message": "Mark watched streaming titles and visually reduce them in your catalog.",
+    "description": "Extension description."
+  }
+}

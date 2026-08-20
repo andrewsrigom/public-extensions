@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.wxt/
+.output/
+coverage/
+dist/
+apps/*/.wxt/
+apps/*/.output/
+apps/*/coverage/
+apps/*/dist/
+pnpm-lock.yaml
+*.zip
+*.tsbuildinfo
+.idea/
+.vscode/
+*.code-workspace

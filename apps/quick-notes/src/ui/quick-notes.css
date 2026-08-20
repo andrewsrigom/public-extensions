@@ -1,0 +1,502 @@
+@import "@browser-extensions/ui/styles.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../../entrypoints/**/*.{html,ts,tsx}";
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--extension-text);
+  background: var(--extension-page);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow-y: auto;
+  background: var(--extension-page);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.app {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 100%;
+  margin: 0 auto;
+  background: var(--extension-page);
+}
+
+.app--panel {
+  width: min(100%, 520px);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.app--page {
+  align-content: start;
+  width: min(1280px, calc(100vw - 48px));
+  min-height: 100vh;
+  padding: 32px 0 48px;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.title-block {
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 14px;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.app--panel .header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.app--panel .header-actions {
+  display: flex;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  color: var(--extension-text);
+  font-size: 23px;
+  font-weight: 780;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.app--page h1 {
+  font-size: 30px;
+}
+
+.app--panel h1 {
+  font-size: 20px;
+}
+
+.app--panel .page-context {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.page-context,
+.status,
+.note-meta,
+.empty-state {
+  color: var(--extension-muted);
+}
+
+.page-context {
+  overflow: hidden;
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.app--page .filters {
+  grid-template-columns: minmax(280px, 380px) minmax(190px, 220px) 1px minmax(220px, 260px);
+  align-items: center;
+  margin-top: 20px;
+}
+
+.app--page .filters::after {
+  content: "";
+  grid-column: 3;
+  grid-row: 1;
+  width: 1px;
+  height: 34px;
+  background: var(--extension-border-strong);
+}
+
+.app--page .visibility-tabs {
+  grid-column: 2;
+}
+
+.app--page .scope-tabs {
+  grid-column: 4;
+}
+
+.quick-notes-search {
+  min-height: 44px;
+}
+
+.quick-notes-new-button {
+  min-height: 44px;
+}
+
+.app--page .quick-notes-new-button {
+  min-width: 96px;
+}
+
+.app--panel .quick-notes-new-button {
+  width: auto;
+}
+
+.quick-notes-settings-button {
+  width: 44px;
+  height: 44px;
+}
+
+.primary,
+.secondary,
+.quiet-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--extension-radius-control);
+  font-weight: 780;
+  padding: 0 16px;
+}
+
+.app--page .primary {
+  min-width: 96px;
+}
+
+.app--panel .primary {
+  width: 100%;
+}
+
+.primary {
+  color: var(--extension-primary-contrast);
+  background: var(--extension-primary);
+  box-shadow: none;
+}
+
+.primary:hover {
+  background: var(--extension-primary-hover);
+}
+
+.secondary,
+.quiet-button {
+  border: 1px solid var(--extension-border-strong);
+  color: var(--extension-text);
+  background: var(--extension-surface);
+}
+
+.secondary:hover,
+.quiet-button:hover {
+  background: color-mix(in srgb, var(--extension-primary) 16%, var(--extension-surface));
+}
+
+.quiet-button.danger {
+  color: var(--extension-danger);
+  background: transparent;
+}
+
+.quiet-button.danger:hover {
+  background: var(--extension-danger-surface);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.quiet-button:focus-visible,
+.icon-button:focus-visible {
+  outline: 2px solid var(--extension-focus);
+  outline-offset: 2px;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid var(--extension-border-strong);
+  border-radius: var(--extension-radius-control);
+  color: var(--extension-text);
+  background: var(--extension-surface);
+  cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-button[data-state="open"] {
+  background: color-mix(in srgb, var(--extension-primary) 16%, var(--extension-surface));
+}
+
+.app-menu-panel {
+  min-width: 210px;
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.status {
+  min-height: 0;
+  font-size: 12px;
+}
+
+.empty-state {
+  padding: 34px 12px;
+  text-align: center;
+}
+
+.note-section {
+  display: grid;
+  gap: 14px;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--extension-muted);
+  font-size: 13px;
+  font-weight: 820;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.app--page .section-label {
+  margin-top: 6px;
+}
+
+.notes {
+  display: grid;
+  gap: 14px;
+}
+
+.app--page .notes {
+  display: block;
+  column-count: 3;
+  column-gap: 18px;
+}
+
+.note-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: visible;
+  border: 1px solid var(--extension-border);
+  border-radius: var(--extension-radius-panel);
+  background: var(--extension-surface-raised);
+  box-shadow: none;
+}
+
+.note-card--panel {
+  min-height: 122px;
+}
+
+.note-card--page {
+  display: inline-grid;
+  width: 100%;
+  min-height: 142px;
+  margin: 0 0 18px;
+  break-inside: avoid;
+}
+
+.note-card--pinned {
+  border-color: color-mix(in srgb, var(--extension-primary) 72%, var(--extension-border));
+  box-shadow: none;
+}
+
+.note-card--archived {
+  border-style: dashed;
+}
+
+.note-editor-shell {
+  min-height: 82px;
+  border-radius: 0 0 var(--extension-radius-panel) var(--extension-radius-panel);
+  background: transparent;
+}
+
+.app--page .note-editor-shell,
+.app--page .note-editor-shell .bn-container,
+.app--page .note-editor-shell .bn-editor {
+  min-height: 88px;
+}
+
+.note-editor-shell .bn-container {
+  --bn-colors-editor-text: var(--extension-text);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--extension-text);
+  --bn-colors-menu-background: var(--extension-surface);
+  --bn-colors-tooltip-text: var(--extension-text);
+  --bn-colors-tooltip-background: var(--extension-surface);
+  --bn-colors-hovered-text: var(--extension-text);
+  --bn-colors-hovered-background: color-mix(in srgb, var(--extension-muted) 10%, transparent);
+  --bn-colors-selected-text: var(--extension-text);
+  --bn-colors-selected-background: color-mix(in srgb, var(--extension-muted) 14%, transparent);
+  --bn-colors-border: var(--extension-border-strong);
+  --bn-font-family: var(--font-sans);
+  width: 100%;
+  min-height: 82px;
+  background: transparent;
+}
+
+.note-editor-shell .bn-editor {
+  min-height: 82px;
+  padding: 8px 16px 16px;
+  background: transparent;
+}
+
+.note-editor-shell .bn-editor:focus,
+.note-editor-shell .bn-editor:focus-visible {
+  outline: none;
+}
+
+.note-editor-shell .bn-editor ::selection {
+  color: inherit;
+  background: color-mix(in srgb, var(--extension-muted) 18%, transparent);
+}
+
+.note-editor-shell .bn-block-content {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.note-editor-shell .bn-block-content[data-content-type="heading"] {
+  font-size: 18px;
+}
+
+.app--panel .note-editor-shell .bn-block-content {
+  font-size: 15px;
+}
+
+.note-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 10px 0 16px;
+}
+
+.note-meta {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app--panel .note-meta {
+  font-size: 13px;
+}
+
+.note-actions {
+  justify-self: end;
+}
+
+.note-actions .icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  background: color-mix(in srgb, var(--extension-surface) 82%, transparent);
+}
+
+.pinned-marker {
+  position: absolute;
+  bottom: 16px;
+  right: 18px;
+  color: var(--extension-primary);
+}
+
+@media (max-width: 920px) {
+  .app--page .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .app--page .filters::after {
+    display: none;
+  }
+
+  .app--page .notes {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .app--page {
+    width: min(100%, calc(100vw - 20px));
+    padding: 14px 0;
+  }
+
+  .app--page .notes {
+    column-count: 1;
+  }
+}
+
+@media (max-width: 390px) {
+  .header {
+    grid-template-columns: 1fr;
+  }
+
+  .header-actions,
+  .note-actions {
+    justify-content: flex-end;
+  }
+
+  .app--panel {
+    padding: 14px;
+  }
+
+  .note-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

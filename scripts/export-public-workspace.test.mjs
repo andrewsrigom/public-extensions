@@ -1,0 +1,430 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join, parse, resolve } from "node:path";
+import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { resolveSafeSourcePath } from "./export-public-workspace.mjs";
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const exporterPath = join(repositoryRoot, "scripts/export-public-workspace.mjs");
+const temporaryRoot = mkdtempSync(join(tmpdir(), "browser-extensions-public-export-"));
+
+after(() => {
+  rmSync(temporaryRoot, { force: true, recursive: true });
+});
+
+function runExporter(arguments_, options = {}) {
+  return spawnSync(process.execPath, [exporterPath, ...arguments_], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    env: options.env ?? process.env
+  });
+}
+
+function combinedOutput(result) {
+  return `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+}
+
+function assertRefused(arguments_, expectedMessage) {
+  const result = runExporter(arguments_);
+  assert.notEqual(result.status, 0, combinedOutput(result));
+  assert.match(combinedOutput(result), expectedMessage);
+}
+
+test("requires one explicit destination", () => {
+  assertRefused([], /explicit destination is required/i);
+  assertRefused([join(temporaryRoot, "one"), join(temporaryRoot, "two")], /explicit destination is required/i);
+});
+
+test("refuses a source file reached through an ancestor symlink", () => {
+  const sourceRoot = join(temporaryRoot, "synthetic-source-root");
+  const outsideRoot = join(temporaryRoot, "synthetic-outside-root");
+  mkdirSync(join(sourceRoot, "docs"), { recursive: true });
+  mkdirSync(outsideRoot);
+  writeFileSync(join(outsideRoot, "LICENSE"), "outside content\n", "utf8");
+  symlinkSync(outsideRoot, join(sourceRoot, "docs/public"), "dir");
+
+  assert.throws(() => resolveSafeSourcePath(sourceRoot, "docs/public/LICENSE"), /symbolic-link source path segment/i);
+});
+test("refuses filesystem roots and the source repository", () => {
+  assertRefused([parse(repositoryRoot).root, "--skip-install"], /filesystem root/i);
+  assertRefused([repositoryRoot, "--skip-install"], /current repository/i);
+
+  const nestedDestination = join(repositoryRoot, ".public-export-test");
+  assertRefused([nestedDestination, "--skip-install"], /current repository/i);
+  assert.equal(existsSync(nestedDestination), false);
+});
+
+test("refuses a symbolic-link destination without touching its target", () => {
+  const target = join(temporaryRoot, "symlink-target");
+  const destination = join(temporaryRoot, "symlink-destination");
+  mkdirSync(target);
+  symlinkSync(target, destination, "dir");
+
+  assertRefused([destination, "--skip-install"], /symbolic link/i);
+  assert.deepEqual(readdirSync(target), []);
+});
+test("refuses a non-empty destination without deleting or overwriting it", () => {
+  const destination = join(temporaryRoot, "non-empty");
+  const marker = join(destination, "keep-me.txt");
+  mkdirSync(destination);
+  writeFileSync(marker, "preserve this file\n", "utf8");
+
+  assertRefused([destination, "--skip-install"], /must be empty/i);
+  assert.equal(readFileSync(marker, "utf8"), "preserve this file\n");
+  assert.deepEqual(readdirSync(destination), ["keep-me.txt"]);
+});
+
+test("offline mode copies exactly the declared public workspace surface", () => {
+  const destination = join(temporaryRoot, "allowlisted-export");
+  const result = runExporter([destination, "--skip-install"]);
+  assert.equal(result.status, 0, combinedOutput(result));
+  assert.match(combinedOutput(result), /not ready to publish/i);
+
+  assert.deepEqual(readdirSync(join(destination, "apps")).sort(), [
+    "pathswitch",
+    "product-filter",
+    "quick-notes",
+    "site-reset",
+    "time-zone-helper",
+    "watched-filter"
+  ]);
+  assert.deepEqual(readdirSync(join(destination, "packages")).sort(), ["ui", "ui-tokens"]);
+  assert.deepEqual(readdirSync(destination).sort(), [
+    ".editorconfig",
+    ".gitattributes",
+    ".github",
+    ".gitignore",
+    ".nvmrc",
+    ".prettierignore",
+    ".public-export-incomplete",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "apps",
+    "docs",
+    "eslint.config.mjs",
+    "package.json",
+    "packages",
+    "pnpm-workspace.yaml",
+    "prettier.config.mjs",
+    "scripts"
+  ]);
+
+  assert.equal(existsSync(join(destination, ".public-export-incomplete")), true);
+  assert.equal(existsSync(join(destination, ".git")), false);
+  assert.equal(existsSync(join(destination, "AGENTS.md")), false);
+  assert.equal(existsSync(join(destination, "roadmap.md")), false);
+  assert.equal(existsSync(join(destination, "pnpm-lock.yaml")), false);
+  assert.equal(existsSync(join(destination, "apps/watched-filter/node_modules")), false);
+  assert.equal(existsSync(join(destination, "apps/watched-filter/.output")), false);
+  assert.equal(existsSync(join(destination, "apps/watched-filter/.wxt")), false);
+
+  assert.equal(
+    readFileSync(join(destination, "LICENSE"), "utf8"),
+    readFileSync(join(repositoryRoot, "docs/public/LICENSE"), "utf8")
+  );
+
+  assert.equal(
+    readFileSync(join(destination, "docs/open-source-readiness.md"), "utf8"),
+    readFileSync(join(repositoryRoot, "docs/public/OPEN_SOURCE_READINESS.md"), "utf8")
+  );
+  assert.equal(
+    readFileSync(join(destination, ".prettierignore"), "utf8"),
+    readFileSync(join(repositoryRoot, "docs/public/.prettierignore"), "utf8")
+  );
+  for (const document of ["asset-provenance.md", "third-party-licenses.md"]) {
+    assert.equal(
+      readFileSync(join(destination, "docs", document), "utf8"),
+      readFileSync(join(repositoryRoot, "docs", document), "utf8")
+    );
+  }
+  for (const file of [
+    "docs/license-overrides/react-remove-scroll-bar-2.3.8-LICENSE.txt",
+    "docs/license-overrides/wxt-0.21.3-LICENSE.txt",
+    "scripts/generate-public-license-notices.mjs"
+  ]) {
+    assert.equal(readFileSync(join(destination, file), "utf8"), readFileSync(join(repositoryRoot, file), "utf8"));
+  }
+
+  const publicPackage = JSON.parse(readFileSync(join(destination, "package.json"), "utf8"));
+  assert.equal(publicPackage.private, true);
+  assert.equal(publicPackage.scripts["check:public-boundary"], "node scripts/check-public-boundary.mjs --export");
+  assert.equal(
+    publicPackage.scripts["licenses:check:public"],
+    "node scripts/generate-public-license-notices.mjs --check"
+  );
+  assert.match(publicPackage.scripts["quality:public"], /\bpnpm\s+licenses:check:public\b/);
+
+  const publicWorkflow = readFileSync(join(destination, ".github/workflows/ci.yml"), "utf8");
+  assert.match(publicWorkflow, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/);
+  assert.match(publicWorkflow, /pnpm\/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996/);
+  assert.match(publicWorkflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
+  assert.match(publicWorkflow, /pnpm audit --audit-level high/);
+
+  writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    {
+      cwd: destination,
+      encoding: "utf8"
+    }
+  );
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /public-export-incomplete/i);
+  assert.match(combinedOutput(boundaryCheck), /pnpm-lock\.yaml importers/i);
+});
+
+test("the export checker parses empty importers without treating nested keys as importers", () => {
+  const destination = join(temporaryRoot, "valid-lockfile-importers");
+  const result = runExporter([destination, "--skip-install"]);
+  assert.equal(result.status, 0, combinedOutput(result));
+  rmSync(join(destination, ".public-export-incomplete"));
+  writeFileSync(
+    join(destination, "pnpm-lock.yaml"),
+    `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@eslint/js':
+        specifier: 9.0.0
+        version: 9.0.0
+
+  apps/pathswitch: {}
+  apps/product-filter: {}
+  apps/quick-notes: {}
+  apps/site-reset: {}
+  apps/time-zone-helper: {}
+  apps/watched-filter: {}
+  packages/ui: {}
+  packages/ui-tokens: {}
+
+packages:
+
+  '@eslint/js@9.0.0':
+    resolution: {integrity: sha512-placeholder}
+`,
+    "utf8"
+  );
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+  assert.equal(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+});
+
+test("a dependency-tool failure leaves an existing empty destination untouched", () => {
+  const fakeBin = join(temporaryRoot, "failing-pnpm-bin");
+  const destination = join(temporaryRoot, "atomic-failure");
+  mkdirSync(fakeBin);
+  mkdirSync(destination);
+
+  const fakePnpm = join(fakeBin, "pnpm");
+  writeFileSync(fakePnpm, "#!/bin/sh\nexit 19\n", "utf8");
+  chmodSync(fakePnpm, 0o755);
+  writeFileSync(join(fakeBin, "pnpm.cmd"), "@exit /b 19\r\n", "utf8");
+
+  const result = runExporter([destination], {
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`
+    }
+  });
+
+  assert.notEqual(result.status, 0, combinedOutput(result));
+  assert.deepEqual(readdirSync(destination), []);
+  assert.equal(
+    readdirSync(temporaryRoot).some((name) => name.startsWith(".atomic-failure.public-export-")),
+    false
+  );
+});
+
+test("the export checker rejects unexpected files and symlinks", () => {
+  const destination = join(temporaryRoot, "checker-allowlist");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const unexpectedDirectory = join(destination, "unapproved-source");
+  mkdirSync(unexpectedDirectory);
+  writeFileSync(join(unexpectedDirectory, "README.md"), "must not be published\n", "utf8");
+  symlinkSync("../README.md", join(destination, "docs/review-link"));
+  const generatedDirectory = join(destination, "apps/watched-filter/.output");
+  mkdirSync(generatedDirectory, { recursive: true });
+  writeFileSync(join(generatedDirectory, "leak.js"), "generated\n", "utf8");
+  writeFileSync(join(destination, "apps/watched-filter/profile-export.pdf"), Buffer.from([0, 1, 2, 3]));
+  writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /outside the exact publication manifest/i);
+  assert.match(combinedOutput(boundaryCheck), /unapproved-source\/README\.md/);
+  assert.match(combinedOutput(boundaryCheck), /symlinks inside public paths/i);
+  assert.match(combinedOutput(boundaryCheck), /generated, local, document, dump, or archive/i);
+  assert.match(combinedOutput(boundaryCheck), /apps\/watched-filter\/\.output/);
+  assert.match(combinedOutput(boundaryCheck), /profile-export\.pdf/);
+});
+
+test("the export checker rejects a force-tracked generated artifact", () => {
+  const destination = join(temporaryRoot, "checker-force-tracked");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const generatedDirectory = join(destination, "apps/watched-filter/.output");
+  mkdirSync(generatedDirectory, { recursive: true });
+  writeFileSync(join(generatedDirectory, "forced.js"), "generated\n", "utf8");
+
+  const initResult = spawnSync("git", ["-C", destination, "init", "--quiet"], { encoding: "utf8" });
+  assert.equal(initResult.status, 0, combinedOutput(initResult));
+  const addResult = spawnSync("git", ["-C", destination, "add", "--force", "apps/watched-filter/.output/forced.js"], {
+    encoding: "utf8"
+  });
+  assert.equal(addResult.status, 0, combinedOutput(addResult));
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /Git tracked files plus non-ignored untracked files/i);
+  assert.match(combinedOutput(boundaryCheck), /generated, local, document, dump, or archive/i);
+  assert.match(combinedOutput(boundaryCheck), /apps\/watched-filter\/\.output\/forced\.js/);
+});
+
+test("the export checker detects public template toolchain drift", () => {
+  const destination = join(temporaryRoot, "checker-template-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const templatePath = join(destination, "docs/public/package.json");
+  const templatePackage = JSON.parse(readFileSync(templatePath, "utf8"));
+  templatePackage.devDependencies.wxt = "0.0.0-drift";
+  writeFileSync(templatePath, `${JSON.stringify(templatePackage, null, 2)}\n`, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /devDependencies has drifted/i);
+});
+
+test("the export checker requires the public license-check script", () => {
+  const destination = join(temporaryRoot, "checker-license-script");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const packagePath = join(destination, "package.json");
+  const publicPackage = JSON.parse(readFileSync(packagePath, "utf8"));
+  delete publicPackage.scripts["licenses:check:public"];
+  writeFileSync(packagePath, JSON.stringify(publicPackage, null, 2) + "\n", "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /required root public scripts are missing:.*licenses:check:public/is);
+});
+
+test("the export checker scans binary assets for embedded credentials", () => {
+  const destination = join(temporaryRoot, "checker-binary-secret");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const fakeAwsAccessKey = ["AKIA", "ABCDEFGHIJKLMNOP"].join("");
+  const assetPath = join(destination, "apps/watched-filter/assets/icon-master.png");
+  writeFileSync(assetPath, Buffer.from("\0PNG metadata " + fakeAwsAccessKey + "\0", "utf8"));
+  writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /recognizable secret material/i);
+  assert.match(combinedOutput(boundaryCheck), /icon-master\.png \(AWS access key\)/i);
+});
+
+test("the legal-notice email exemption is exact and path-specific", () => {
+  const destination = join(temporaryRoot, "checker-legal-notice-email");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const upstreamEmail = ["upstream", "dependency.test"].join("@");
+  const noticePath = join(destination, "apps/quick-notes/public/THIRD_PARTY_NOTICES.txt");
+  writeFileSync(noticePath, readFileSync(noticePath, "utf8") + "\nAuthor: " + upstreamEmail + "\n", "utf8");
+  writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+
+  const legalNoticeCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(legalNoticeCheck.status, 0, combinedOutput(legalNoticeCheck));
+  assert.doesNotMatch(combinedOutput(legalNoticeCheck), /THIRD_PARTY_NOTICES\.txt \(email address\)/i);
+
+  const unrelatedPath = join(destination, "apps/watched-filter/README.md");
+  writeFileSync(unrelatedPath, readFileSync(unrelatedPath, "utf8") + "\nContact: " + upstreamEmail + "\n", "utf8");
+  const unrelatedFileCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(unrelatedFileCheck.status, 0, combinedOutput(unrelatedFileCheck));
+  assert.match(combinedOutput(unrelatedFileCheck), /watched-filter\/README\.md \(email address\)/i);
+});
+
+test("the export checker rejects a production-only dependency audit", () => {
+  const destination = join(temporaryRoot, "checker-prod-only-audit");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const workflowPath = join(destination, ".github/workflows/ci.yml");
+  const workflow = readFileSync(workflowPath, "utf8");
+  const weakenedWorkflow = workflow.replace("pnpm audit --audit-level high", "pnpm audit --prod --audit-level high");
+  assert.notEqual(weakenedWorkflow, workflow);
+  writeFileSync(workflowPath, weakenedWorkflow, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /must not limit.*audit to production dependencies/i);
+});

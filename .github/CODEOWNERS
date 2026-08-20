@@ -1,0 +1,8 @@
+# The repository owner reviews every public change by default.
+* @andrewsrigom
+
+/apps/ @andrewsrigom
+/packages/ @andrewsrigom
+/.github/ @andrewsrigom
+/scripts/ @andrewsrigom
+/SECURITY.md @andrewsrigom
