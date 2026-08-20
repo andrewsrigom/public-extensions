@@ -16,9 +16,9 @@
     "zip": "wxt zip && pnpm release:assets:check"
   },
   "dependencies": {
-    "@blocknote/core": "^0.51.4",
-    "@blocknote/mantine": "^0.51.4",
-    "@blocknote/react": "^0.51.4",
+    "@blocknote/core": "^0.54.0",
+    "@blocknote/mantine": "^0.54.0",
+    "@blocknote/react": "^0.54.0",
     "@browser-extensions/ui": "workspace:*",
     "@mantine/core": "^9.4.1",
     "@mantine/hooks": "^9.4.1",

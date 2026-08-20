@@ -93,7 +93,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@tailwindcss/vite": "4.3.2",
+    "@tailwindcss/vite": "4.3.3",
     "@types/node": "^24.12.2",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
@@ -103,10 +103,10 @@
     "globals": "^16.5.0",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
-    "tailwindcss": "4.3.2",
+    "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite": "6.4.3",
     "vitest": "^4.1.9",
-    "wxt": "0.21.3"
+    "wxt": "0.21.4"
   }
 }
