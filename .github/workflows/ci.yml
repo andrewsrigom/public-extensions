@@ -43,5 +43,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate boundary and quality
-        run: pnpm quality:public
+      - name: Test publication exporter
+        run: pnpm test:public-export
+
+      - name: Validate release artifacts
+        run: pnpm release:check:public

@@ -47,9 +47,13 @@ Before the first public push:
 Contributors should run:
 
 ```bash
+pnpm test:public-export
 pnpm check:public-boundary
 pnpm quality:public
 ```
+
+`test:public-export` validates the Git-backed export tool and therefore runs in a repository checkout and in CI. It is
+intentionally separate from `release:check:public`, which must also pass in an exported source snapshot without `.git`.
 
 Maintainers should additionally run:
 

@@ -8,7 +8,7 @@ newer release supersedes them. Please verify that a report still applies to the 
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected vulnerability. Use the repository's
-[private vulnerability reporting form](https://github.com/andrewsrigom/browser-extensions/security/advisories/new) instead.
+[private vulnerability reporting form](https://github.com/andrewsrigom/public-extensions/security/advisories/new) instead.
 Include, when possible:
 
 - the affected extension, version, browser, and operating system;

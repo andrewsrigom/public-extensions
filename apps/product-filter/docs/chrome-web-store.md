@@ -46,7 +46,7 @@ Suggested conservative data declarations: **Website content** for product titles
 
 Privacy policy URL after the file is public:
 
-`https://github.com/andrewsrigom/browser-extensions/blob/main/apps/product-filter/PRIVACY.md`
+`https://github.com/andrewsrigom/public-extensions/blob/main/apps/product-filter/PRIVACY.md`
 
 ## Required Assets
 

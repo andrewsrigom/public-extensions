@@ -43,7 +43,7 @@ Suggested conservative data declaration: **Web history** because top-level navig
 
 Privacy policy URL after the file is public:
 
-`https://github.com/andrewsrigom/browser-extensions/blob/main/apps/pathswitch/PRIVACY.md`
+`https://github.com/andrewsrigom/public-extensions/blob/main/apps/pathswitch/PRIVACY.md`
 
 ## Required Assets
 

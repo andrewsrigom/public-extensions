@@ -5,6 +5,7 @@ export default defineConfig({
   manifest: {
     name: "Site Reset",
     description: "Reset cookies, cache, and local site data for the current website.",
+    minimum_chrome_version: "119",
     permissions: ["browsingData", "cookies", "scripting", "storage", "tabs"],
     host_permissions: ["<all_urls>"],
     icons: {

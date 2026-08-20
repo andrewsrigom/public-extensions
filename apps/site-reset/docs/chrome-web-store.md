@@ -14,10 +14,10 @@ Clear selected cookies, cache, and local site storage for the website open in yo
 
 Site Reset gives you a focused way to clear data for the website you are currently viewing without clearing data for every site in Chrome.
 
-- remove both regular cookies and partitioned cookies associated with the active top-level site;
-  Features:
+Features:
 
 - identify the current HTTP or HTTPS website before clearing anything;
+- remove both regular cookies and partitioned cookies associated with the active top-level site;
 - choose cookies, browser cache, localStorage and sessionStorage, or Cache Storage, IndexedDB, and service workers;
 - confirm destructive cleanup before it starts;
 - clear only the selected categories for the current website;
@@ -26,6 +26,9 @@ Site Reset gives you a focused way to clear data for the website you are current
 All cleanup operations happen locally through Chrome APIs after a user action. The extension does not send URLs, cookies, website data, settings, or browsing activity to the developer or to a developer-controlled server. Chrome may synchronize the language preference through Chrome Sync when the user enables browser synchronization.
 
 Clearing cookies or site storage can sign you out and cannot be undone.
+
+Requires Chrome 119 or newer so partitioned-cookie cleanup is available. If Chrome cannot enumerate or remove every
+selected cookie, the reset reports a failure instead of claiming that cleanup completed.
 
 ## Privacy Tab
 
@@ -48,7 +51,7 @@ Suggested conservative data declarations: **Web history** for the current URL, *
 
 Privacy policy URL after the file is public:
 
-`https://github.com/andrewsrigom/browser-extensions/blob/main/apps/site-reset/PRIVACY.md`
+`https://github.com/andrewsrigom/public-extensions/blob/main/apps/site-reset/PRIVACY.md`
 
 ## Required Assets
 

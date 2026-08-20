@@ -40,7 +40,7 @@ Data declarations: no personal or sensitive data categories are expected. Time-z
 
 Privacy policy URL after the file is public:
 
-`https://github.com/andrewsrigom/browser-extensions/blob/main/apps/time-zone-helper/PRIVACY.md`
+`https://github.com/andrewsrigom/public-extensions/blob/main/apps/time-zone-helper/PRIVACY.md`
 
 ## Required Assets
 

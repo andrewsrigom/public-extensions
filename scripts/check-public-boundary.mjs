@@ -30,6 +30,7 @@ const publicComponents = [
   ...publicPackages.map((name) => `packages/${name}`)
 ];
 const licenseGeneratorPath = "scripts/generate-public-license-notices.mjs";
+const releaseLicenseCheckerPath = "scripts/check-public-release-licenses.mjs";
 const licenseOverridePaths = [
   "docs/license-overrides/react-remove-scroll-bar-2.3.8-LICENSE.txt",
   "docs/license-overrides/wxt-0.21.3-LICENSE.txt"
@@ -56,9 +57,10 @@ const requiredRepositoryFiles = [
   "docs/open-source-readiness.md"
 ];
 const requiredAppDocuments = ["README.md", "PRIVACY.md", "CHANGELOG.md"];
-const requiredAppLegalDocuments = ["public/THIRD_PARTY_NOTICES.txt"];
+const requiredAppLegalDocuments = ["public/LICENSE", "public/THIRD_PARTY_NOTICES.txt"];
 const publicRootScripts = [
   "format:check:public",
+  "licenses:check:release",
   "licenses:check:public",
   "lint:public",
   "quality:public",
@@ -116,6 +118,7 @@ const expectedExportFiles = new Set([
   "pnpm-workspace.yaml",
   "prettier.config.mjs",
   licenseGeneratorPath,
+  releaseLicenseCheckerPath,
   scannerRelativePath,
   "scripts/export-public-workspace.mjs",
   "scripts/export-public-workspace.test.mjs"
@@ -160,25 +163,20 @@ function formatList(values, maximum = 12) {
 }
 
 function walkFallback(directory, collected = []) {
-  const skippedDirectoryContents = new Set([
-    ".git",
-    ".local",
-    ".idea",
-    ".output",
-    ".pnpm-store",
-    ".wxt",
-    "coverage",
-    ".vscode",
-    "dist",
-    "node_modules"
-  ]);
+  const ignoredInstallationEntries = new Set([".git", ".pnpm-store", "node_modules"]);
+  const skippedDirectoryContents = new Set([".local", ".idea", ".output", ".wxt", "coverage", ".vscode", "dist"]);
 
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const entryPath = join(directory, entry.name);
     const relativeEntryPath = normalizePath(relative(repositoryRoot, entryPath));
 
+    // Source archives legitimately gain dependency directories and workspace
+    // symlinks after `pnpm install`. Ignore them by name before inspecting the
+    // Dirent type so package-level `node_modules` symlinks are handled too.
+    if (ignoredInstallationEntries.has(entry.name)) continue;
+
     if (entry.isDirectory() && skippedDirectoryContents.has(entry.name)) {
-      if (!isWorkspaceMode && entry.name !== ".git") {
+      if (!isWorkspaceMode) {
         collected.push(relativeEntryPath);
       }
       continue;
@@ -341,26 +339,30 @@ function checkLicenseBoundary() {
     if (publicLicenseExists) {
       addError("license", "A root LICENSE must not cover the mixed public/private internal hub.");
     }
-    return;
+  } else {
+    checkRequiredFile(publicLicensePath, "license");
+
+    if (sourceLicenseExists && publicLicenseExists) {
+      compareLicenseBytes(sourceLicensePath, publicLicensePath);
+    }
   }
 
-  checkRequiredFile(publicLicensePath, "license");
+  const canonicalLicensePath = isWorkspaceMode ? sourceLicensePath : publicLicensePath;
+  for (const app of publicApps) {
+    compareLicenseBytes(canonicalLicensePath, `apps/${app}/public/LICENSE`);
+  }
+}
 
-  if (sourceLicenseExists && publicLicenseExists) {
-    let sourceLicense;
-    let publicLicense;
-    try {
-      sourceLicense = readFileSync(absolutePath(sourceLicensePath), "utf8");
-      publicLicense = readFileSync(absolutePath(publicLicensePath), "utf8");
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      addError("license", `License files could not be compared: ${detail}`);
-      return;
+function compareLicenseBytes(expectedPath, actualPath) {
+  try {
+    const expected = readFileSync(absolutePath(expectedPath));
+    const actual = readFileSync(absolutePath(actualPath));
+    if (!expected.equals(actual)) {
+      addError("license", `${actualPath} must be byte-for-byte identical to ${expectedPath}.`);
     }
-
-    if (sourceLicense !== publicLicense) {
-      addError("license", `${sourceLicensePath} and ${publicLicensePath} differ.`);
-    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    addError("license", `${expectedPath} and ${actualPath} could not be compared: ${detail}`);
   }
 }
 
@@ -386,6 +388,7 @@ function checkDocumentation() {
     checkRequiredFile(file);
   }
   checkRequiredFile(licenseGeneratorPath, "licenses");
+  checkRequiredFile(releaseLicenseCheckerPath, "licenses");
 
   for (const app of publicApps) {
     for (const document of [...requiredAppDocuments, ...requiredAppLegalDocuments]) {
@@ -413,6 +416,20 @@ function checkPackageScripts(manifests) {
       const expectedLicenseCheckCommand = `node ${licenseGeneratorPath} --check`;
       if (typeof licenseCheckCommand === "string" && licenseCheckCommand !== expectedLicenseCheckCommand) {
         addError("scripts", `licenses:check:public must be exactly "${expectedLicenseCheckCommand}".`);
+      }
+
+      const releaseLicenseCheckCommand = manifest.scripts["licenses:check:release"];
+      const expectedReleaseLicenseCheckCommand = `node ${releaseLicenseCheckerPath}`;
+      if (
+        typeof releaseLicenseCheckCommand === "string" &&
+        releaseLicenseCheckCommand !== expectedReleaseLicenseCheckCommand
+      ) {
+        addError("scripts", `licenses:check:release must be exactly "${expectedReleaseLicenseCheckCommand}".`);
+      }
+
+      const releaseCommand = manifest.scripts["release:check:public"];
+      if (typeof releaseCommand === "string" && !/\bpnpm\s+licenses:check:release\b/.test(releaseCommand)) {
+        addError("scripts", "release:check:public must run pnpm licenses:check:release after creating the ZIPs.");
       }
 
       const qualityCommand = manifest.scripts["quality:public"];
@@ -524,7 +541,8 @@ function checkWorkflowSecurity() {
     ["read-only contents permission", /^permissions:\s*\n\s+contents:\s+read\s*$/m],
     ["checkout credential isolation", /persist-credentials:\s*false/],
     ["frozen lockfile install", /pnpm install --frozen-lockfile/],
-    ["public quality gate", /pnpm quality:public/],
+    ["public exporter test", /pnpm test:public-export/],
+    ["public release artifact gate", /pnpm release:check:public/],
     ["high-severity full dependency audit", /pnpm audit --audit-level[= ]high/]
   ];
   for (const [label, pattern] of requiredPatterns) {

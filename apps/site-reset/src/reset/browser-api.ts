@@ -122,7 +122,7 @@ async function removeSiteCookies(site: ActiveSite): Promise<void> {
   // browsingData clears regular cookies at every path for the registrable
   // domain. The explicit pass additionally covers CHIPS records associated
   // with the current top-level site, including embedded third-party origins.
-  const partitionedCookies = await cookiesApi.getAll({ partitionKey: { topLevelSite: site.origin } }).catch(() => []);
+  const partitionedCookies = await cookiesApi.getAll({ partitionKey: { topLevelSite: site.origin } });
 
   await Promise.all([
     removeBrowsingData(site.origin, { cookies: true }),

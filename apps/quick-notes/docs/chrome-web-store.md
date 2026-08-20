@@ -43,7 +43,7 @@ Suggested conservative data declarations: **Website content** for optional page 
 
 Privacy policy URL after the file is public:
 
-`https://github.com/andrewsrigom/browser-extensions/blob/main/apps/quick-notes/PRIVACY.md`
+`https://github.com/andrewsrigom/public-extensions/blob/main/apps/quick-notes/PRIVACY.md`
 
 ## Required Assets
 

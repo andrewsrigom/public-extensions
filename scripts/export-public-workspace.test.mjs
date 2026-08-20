@@ -20,6 +20,7 @@ import { resolveSafeSourcePath } from "./export-public-workspace.mjs";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exporterPath = join(repositoryRoot, "scripts/export-public-workspace.mjs");
 const temporaryRoot = mkdtempSync(join(tmpdir(), "browser-extensions-public-export-"));
+const publicApps = ["watched-filter", "product-filter", "quick-notes", "time-zone-helper", "site-reset", "pathswitch"];
 
 after(() => {
   rmSync(temporaryRoot, { force: true, recursive: true });
@@ -41,6 +42,37 @@ function assertRefused(arguments_, expectedMessage) {
   const result = runExporter(arguments_);
   assert.notEqual(result.status, 0, combinedOutput(result));
   assert.match(combinedOutput(result), expectedMessage);
+}
+
+function writeMinimalPublicLock(destination) {
+  writeFileSync(
+    join(destination, "pnpm-lock.yaml"),
+    `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@eslint/js':
+        specifier: 9.0.0
+        version: 9.0.0
+
+  apps/pathswitch: {}
+  apps/product-filter: {}
+  apps/quick-notes: {}
+  apps/site-reset: {}
+  apps/time-zone-helper: {}
+  apps/watched-filter: {}
+  packages/ui: {}
+  packages/ui-tokens: {}
+
+packages:
+
+  '@eslint/js@9.0.0':
+    resolution: {integrity: sha512-placeholder}
+`,
+    "utf8"
+  );
 }
 
 test("requires one explicit destination", () => {
@@ -138,6 +170,12 @@ test("offline mode copies exactly the declared public workspace surface", () => 
     readFileSync(join(destination, "LICENSE"), "utf8"),
     readFileSync(join(repositoryRoot, "docs/public/LICENSE"), "utf8")
   );
+  for (const app of publicApps) {
+    assert.deepEqual(
+      readFileSync(join(destination, "apps", app, "public/LICENSE")),
+      readFileSync(join(destination, "LICENSE"))
+    );
+  }
 
   assert.equal(
     readFileSync(join(destination, "docs/open-source-readiness.md"), "utf8"),
@@ -156,6 +194,7 @@ test("offline mode copies exactly the declared public workspace surface", () => 
   for (const file of [
     "docs/license-overrides/react-remove-scroll-bar-2.3.8-LICENSE.txt",
     "docs/license-overrides/wxt-0.21.3-LICENSE.txt",
+    "scripts/check-public-release-licenses.mjs",
     "scripts/generate-public-license-notices.mjs"
   ]) {
     assert.equal(readFileSync(join(destination, file), "utf8"), readFileSync(join(repositoryRoot, file), "utf8"));
@@ -168,13 +207,16 @@ test("offline mode copies exactly the declared public workspace surface", () => 
     publicPackage.scripts["licenses:check:public"],
     "node scripts/generate-public-license-notices.mjs --check"
   );
+  assert.equal(publicPackage.scripts["licenses:check:release"], "node scripts/check-public-release-licenses.mjs");
   assert.match(publicPackage.scripts["quality:public"], /\bpnpm\s+licenses:check:public\b/);
+  assert.match(publicPackage.scripts["release:check:public"], /\bpnpm\s+licenses:check:release\b/);
 
   const publicWorkflow = readFileSync(join(destination, ".github/workflows/ci.yml"), "utf8");
   assert.match(publicWorkflow, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/);
   assert.match(publicWorkflow, /pnpm\/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996/);
   assert.match(publicWorkflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
   assert.match(publicWorkflow, /pnpm audit --audit-level high/);
+  assert.match(publicWorkflow, /pnpm release:check:public/);
 
   writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
   const boundaryCheck = spawnSync(
@@ -195,34 +237,7 @@ test("the export checker parses empty importers without treating nested keys as 
   const result = runExporter([destination, "--skip-install"]);
   assert.equal(result.status, 0, combinedOutput(result));
   rmSync(join(destination, ".public-export-incomplete"));
-  writeFileSync(
-    join(destination, "pnpm-lock.yaml"),
-    `lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    devDependencies:
-      '@eslint/js':
-        specifier: 9.0.0
-        version: 9.0.0
-
-  apps/pathswitch: {}
-  apps/product-filter: {}
-  apps/quick-notes: {}
-  apps/site-reset: {}
-  apps/time-zone-helper: {}
-  apps/watched-filter: {}
-  packages/ui: {}
-  packages/ui-tokens: {}
-
-packages:
-
-  '@eslint/js@9.0.0':
-    resolution: {integrity: sha512-placeholder}
-`,
-    "utf8"
-  );
+  writeMinimalPublicLock(destination);
 
   const boundaryCheck = spawnSync(
     process.execPath,
@@ -230,6 +245,27 @@ packages:
     { cwd: destination, encoding: "utf8" }
   );
   assert.equal(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+});
+
+test("the filesystem fallback accepts an installed source archive without Git metadata", () => {
+  const destination = join(temporaryRoot, "installed-source-archive");
+  const result = runExporter([destination, "--skip-install"]);
+  assert.equal(result.status, 0, combinedOutput(result));
+  rmSync(join(destination, ".public-export-incomplete"));
+  writeMinimalPublicLock(destination);
+
+  mkdirSync(join(destination, "node_modules/.pnpm"), { recursive: true });
+  writeFileSync(join(destination, "node_modules/.pnpm/installation-marker"), "generated\n", "utf8");
+  symlinkSync("../../node_modules", join(destination, "apps/watched-filter/node_modules"), "dir");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.equal(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /filesystem fallback/i);
 });
 
 test("a dependency-tool failure leaves an existing empty destination untouched", () => {
@@ -336,7 +372,7 @@ test("the export checker detects public template toolchain drift", () => {
   assert.match(combinedOutput(boundaryCheck), /devDependencies has drifted/i);
 });
 
-test("the export checker requires the public license-check script", () => {
+test("the export checker requires both public license-check scripts", () => {
   const destination = join(temporaryRoot, "checker-license-script");
   const exportResult = runExporter([destination, "--skip-install"]);
   assert.equal(exportResult.status, 0, combinedOutput(exportResult));
@@ -344,6 +380,7 @@ test("the export checker requires the public license-check script", () => {
   const packagePath = join(destination, "package.json");
   const publicPackage = JSON.parse(readFileSync(packagePath, "utf8"));
   delete publicPackage.scripts["licenses:check:public"];
+  delete publicPackage.scripts["licenses:check:release"];
   writeFileSync(packagePath, JSON.stringify(publicPackage, null, 2) + "\n", "utf8");
 
   const boundaryCheck = spawnSync(
@@ -354,6 +391,27 @@ test("the export checker requires the public license-check script", () => {
 
   assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
   assert.match(combinedOutput(boundaryCheck), /required root public scripts are missing:.*licenses:check:public/is);
+  assert.match(combinedOutput(boundaryCheck), /required root public scripts are missing:.*licenses:check:release/is);
+});
+
+test("the export checker requires byte-identical first-party licenses in every app", () => {
+  const destination = join(temporaryRoot, "checker-app-license-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  writeFileSync(
+    join(destination, "apps/watched-filter/public/LICENSE"),
+    "MIT License\n\nThis deliberately drifted release license must fail the publication gate.\n",
+    "utf8"
+  );
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /watched-filter\/public\/LICENSE must be byte-for-byte identical/i);
 });
 
 test("the export checker scans binary assets for embedded credentials", () => {
@@ -427,4 +485,25 @@ test("the export checker rejects a production-only dependency audit", () => {
 
   assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
   assert.match(combinedOutput(boundaryCheck), /must not limit.*audit to production dependencies/i);
+});
+
+test("the export checker keeps Git-backed exporter tests in CI", () => {
+  const destination = join(temporaryRoot, "checker-exporter-ci-gate");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const workflowPath = join(destination, ".github/workflows/ci.yml");
+  const workflow = readFileSync(workflowPath, "utf8");
+  const weakenedWorkflow = workflow.replace("pnpm test:public-export", "node --test");
+  assert.notEqual(weakenedWorkflow, workflow);
+  writeFileSync(workflowPath, weakenedWorkflow, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /missing public exporter test/i);
 });

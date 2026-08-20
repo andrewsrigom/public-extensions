@@ -9,10 +9,11 @@
     "dev": "wxt",
     "quality": "pnpm typecheck && pnpm test:run && pnpm build",
     "release:check": "pnpm quality && pnpm zip",
+    "release:assets:check": "node scripts/check-release-assets.mjs",
     "test": "vitest",
-    "test:run": "vitest run",
+    "test:run": "vitest run && node --test scripts/check-release-assets.test.mjs",
     "typecheck": "wxt prepare && tsc --noEmit",
-    "zip": "wxt zip"
+    "zip": "wxt zip && pnpm release:assets:check"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",

@@ -1,6 +1,5 @@
 import type { PartialBlock } from "@blocknote/core";
 import { BlockNoteView, type Theme } from "@blocknote/mantine";
-import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import {
   AppIcon,
@@ -99,7 +98,7 @@ const blockNoteThemes = {
       sideMenu: "#a6b0bf"
     },
     borderRadius: 7,
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   },
   light: {
     colors: {
@@ -132,7 +131,7 @@ const blockNoteThemes = {
       sideMenu: "#5f6b7d"
     },
     borderRadius: 7,
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   }
 } satisfies Record<"dark" | "light", Theme>;
 

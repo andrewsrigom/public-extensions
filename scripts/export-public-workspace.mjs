@@ -67,6 +67,7 @@ const preservedFiles = [
   ...licenseOverridePaths,
   "docs/third-party-licenses.md",
   "docs/public/OPEN_SOURCE_READINESS.md",
+  "scripts/check-public-release-licenses.mjs",
   "scripts/check-public-boundary.mjs",
   "scripts/export-public-workspace.mjs",
   "scripts/export-public-workspace.test.mjs",

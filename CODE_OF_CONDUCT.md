@@ -19,7 +19,7 @@ restrict participation when necessary. Enforcement decisions should consider con
 safety of the community.
 
 Report conduct concerns through the repository's
-[private reporting form](https://github.com/andrewsrigom/browser-extensions/security/advisories/new) and prefix the title
+[private reporting form](https://github.com/andrewsrigom/public-extensions/security/advisories/new) and prefix the title
 with `[Conduct]`. The advisory form is used only as a private intake channel for these reports; vulnerability details are
 not required. Do not use a public issue when a report contains personal or sensitive information. Maintainers will handle
 reports as discreetly as reasonably possible.

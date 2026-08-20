@@ -70,12 +70,14 @@ describe("site reset cookie handling", () => {
     });
   });
 
-  it("still clears regular cookies when partition-key queries are unavailable", async () => {
+  it("fails closed when Chrome cannot enumerate partitioned cookies", async () => {
     browserApiMock.getAllCookies.mockRejectedValue(new Error("partitionKey is unavailable"));
 
-    await resetSite(SITE, ["cookies"]);
+    await expect(resetSite(SITE, ["cookies"])).rejects.toMatchObject({
+      code: "cleanup-failed"
+    });
 
-    expect(browserApiMock.removeBrowsingData).toHaveBeenCalledWith({ origins: [SITE.origin] }, { cookies: true });
+    expect(browserApiMock.removeBrowsingData).not.toHaveBeenCalled();
     expect(browserApiMock.removeCookie).not.toHaveBeenCalled();
   });
 
