@@ -75,7 +75,7 @@ pnpm quality:public
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development conventions,
 [SECURITY.md](./SECURITY.md) for vulnerability reporting, and
 [docs/open-source-readiness.md](./docs/open-source-readiness.md) for the publication and release criteria. Asset-rights and
-dependency-license evidence, including unresolved manual release gates, is recorded in
+dependency-license evidence, including maintainer confirmations and manual release gates, is recorded in
 [docs/asset-provenance.md](./docs/asset-provenance.md) and [docs/third-party-licenses.md](./docs/third-party-licenses.md).
 
 ## License
