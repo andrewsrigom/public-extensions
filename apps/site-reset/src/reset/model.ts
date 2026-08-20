@@ -52,8 +52,12 @@ export function getDefaultSelectedCategories(): ResetCategoryId[] {
   return RESET_CATEGORIES.filter((category) => category.defaultSelected && category.supported).map(({ id }) => id);
 }
 
+export function getSupportedResetCategories(): ResetCategory[] {
+  return RESET_CATEGORIES.filter((category) => category.supported);
+}
+
 export function getSupportedSelectedCategories(selected: readonly ResetCategoryId[]): ResetCategoryId[] {
-  const supported = new Set(RESET_CATEGORIES.filter((category) => category.supported).map(({ id }) => id));
+  const supported = new Set(getSupportedResetCategories().map(({ id }) => id));
   return selected.filter((id) => supported.has(id));
 }
 

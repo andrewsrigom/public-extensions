@@ -9,6 +9,9 @@ describe("product filter i18n", () => {
     expect(t("clearRulesConfirmDescription", "pt-BR")).toContain("termos salvos");
     expect(t("cancel", "es")).toBe("Cancelar");
     expect(t("clearRulesFailed", "en")).toBe("Could not clear rules.");
+    expect(t("manageRules", "en")).toBe("Manage all rules");
+    expect(t("productIds", "pt-BR")).toBe("IDs de produto");
+    expect(t("productIdsHint", "en")).toContain("across all marketplaces");
   });
 
   it("interpolates translated values", () => {

@@ -8,6 +8,7 @@ export type NoteLanguage = (typeof NOTE_LANGUAGES)[number]["code"];
 
 export interface NoteMessages {
   active: string;
+  all: string;
   appTitle: string;
   archive: string;
   archivedNotes: string;
@@ -21,7 +22,6 @@ export interface NoteMessages {
   loadFailed: string;
   saveFailed: string;
   delete: string;
-  global: string;
   globalNote: string;
   language: string;
   languageSaved: string;
@@ -39,6 +39,7 @@ export interface NoteMessages {
   saved: string;
   savedNotes: string;
   searchNotes: string;
+  siteNote: (siteKey: string) => string;
   tagged: (siteKey: string) => string;
   theme: string;
   themeDark: string;
@@ -55,6 +56,7 @@ export interface NoteMessages {
 const MESSAGES: Record<NoteLanguage, NoteMessages> = {
   en: {
     active: "Active",
+    all: "All",
     appTitle: "Quick Notes",
     archive: "Archive",
     archivedNotes: "Archived notes",
@@ -68,7 +70,6 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     loadFailed: "Could not load notes.",
     saveFailed: "Could not save changes. They will be retried before this view closes.",
     delete: "Delete",
-    global: "Global",
     globalNote: "Global note",
     language: "Language",
     languageSaved: "Language saved",
@@ -86,6 +87,7 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     saved: "Saved",
     savedNotes: "Saved notes",
     searchNotes: "Search notes",
+    siteNote: (siteKey) => `Site note · ${siteKey}`,
     tagged: (siteKey) => `Tagged ${siteKey}`,
     theme: "Theme",
     themeDark: "Dark",
@@ -100,6 +102,7 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
   },
   "pt-BR": {
     active: "Ativas",
+    all: "Todas",
     appTitle: "Quick Notes",
     archive: "Arquivar",
     archivedNotes: "Notas arquivadas",
@@ -113,7 +116,6 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     loadFailed: "Não foi possível carregar as notas.",
     saveFailed: "Não foi possível salvar. Uma nova tentativa ocorrerá antes de fechar esta tela.",
     delete: "Excluir",
-    global: "Global",
     globalNote: "Nota global",
     language: "Idioma",
     languageSaved: "Idioma salvo",
@@ -131,6 +133,7 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     saved: "Salva",
     savedNotes: "Notas salvas",
     searchNotes: "Buscar notas",
+    siteNote: (siteKey) => `Nota deste site · ${siteKey}`,
     tagged: (siteKey) => `Marcada ${siteKey}`,
     theme: "Tema",
     themeDark: "Escuro",
@@ -145,6 +148,7 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
   },
   es: {
     active: "Activas",
+    all: "Todas",
     appTitle: "Quick Notes",
     archive: "Archivar",
     archivedNotes: "Notas archivadas",
@@ -158,7 +162,6 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     loadFailed: "No se pudieron cargar las notas.",
     saveFailed: "No se pudieron guardar los cambios. Se reintentará antes de cerrar esta vista.",
     delete: "Eliminar",
-    global: "Global",
     globalNote: "Nota global",
     language: "Idioma",
     languageSaved: "Idioma guardado",
@@ -176,6 +179,7 @@ const MESSAGES: Record<NoteLanguage, NoteMessages> = {
     saved: "Guardada",
     savedNotes: "Notas guardadas",
     searchNotes: "Buscar notas",
+    siteNote: (siteKey) => `Nota de este sitio · ${siteKey}`,
     tagged: (siteKey) => `Marcada ${siteKey}`,
     theme: "Tema",
     themeDark: "Oscuro",

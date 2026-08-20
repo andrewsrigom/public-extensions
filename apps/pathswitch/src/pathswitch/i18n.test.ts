@@ -8,4 +8,11 @@ describe("pathswitch i18n", () => {
     expect(t("validationCycle", "es")).toContain("bucle");
     expect(t("validationCycle", "pt-BR")).toContain("loop");
   });
+
+  it("explains and previews fixed destinations", () => {
+    expect(t("destinationHint", "en")).toContain("fixed destination");
+    expect(t("redirectPreview", "en", { destination: "https://b.example/", source: "a.example/*" })).toBe(
+      "a.example/* → https://b.example/"
+    );
+  });
 });

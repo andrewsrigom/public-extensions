@@ -53,6 +53,9 @@ describe("i18n", () => {
     expect(t("cancel", "es")).toBe("Cancelar");
     expect(t("confirmClear", "en")).toBe("Remove all marked titles?");
     expect(t("clearAllFailed", "pt-BR")).toBe("Nao consegui limpar os titulos marcados.");
+    expect(t("advancedSettingsTitle", "en")).toBe("Advanced");
+    expect(t("advancedSettingsTitle", "pt-BR")).toBe("Avançado");
+    expect(t("advancedSettingsTitle", "es")).toBe("Avanzado");
   });
 
   it("applies text, placeholder, and title translations to a document", () => {

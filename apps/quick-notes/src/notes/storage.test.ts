@@ -184,6 +184,44 @@ describe("quick notes storage", () => {
     );
   });
 
+  it("round-trips a site-scoped note without losing its site identity", async () => {
+    storageState.values[NOTES_STORAGE_KEY] = {
+      version: 2
+    };
+    const siteNote: QuickNote = {
+      ...note("site-note", "Remember this for the current site"),
+      pageTitle: "Example account",
+      pageUrl: "https://www.example.com/account",
+      scope: "site",
+      siteKey: "example.com"
+    };
+
+    await expect(
+      applyNoteMutation({
+        action: "upsert",
+        expectedRevision: 0,
+        note: siteNote
+      })
+    ).resolves.toMatchObject({
+      outcome: "saved",
+      note: {
+        revision: 1,
+        scope: "site",
+        siteKey: "example.com"
+      }
+    });
+
+    await expect(loadNotes()).resolves.toEqual([
+      expect.objectContaining({
+        id: "site-note",
+        pageUrl: "https://www.example.com/account",
+        revision: 1,
+        scope: "site",
+        siteKey: "example.com"
+      })
+    ]);
+  });
+
   it("preserves both edits as separate notes when two views update the same revision", async () => {
     storageState.values[NOTES_STORAGE_KEY] = {
       version: 2

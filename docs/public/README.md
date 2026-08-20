@@ -1,7 +1,6 @@
 # Public Extensions
 
-A production-oriented pnpm workspace for focused browser extensions built with WXT, TypeScript, React, and Chrome
-Manifest V3.
+A pnpm workspace for focused browser extensions built with WXT, TypeScript, React, and Chrome Manifest V3.
 
 ## Extensions
 
@@ -44,6 +43,16 @@ pnpm release:check:public
 
 Generated unpacked builds and ZIPs are written below `apps/<name>/.output/` and are intentionally ignored by Git.
 
+Run the browser smoke suite in a disposable Chromium profile:
+
+```bash
+pnpm playwright:install:public
+pnpm test:e2e:public
+```
+
+See [docs/release-checklist.md](./docs/release-checklist.md) for focused and headed variants. Browser smoke tests stay
+local by default to conserve CI minutes.
+
 ## Repository structure
 
 ```text
@@ -74,8 +83,8 @@ pnpm quality:public
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development conventions,
 [SECURITY.md](./SECURITY.md) for vulnerability reporting, and
-[docs/open-source-readiness.md](./docs/open-source-readiness.md) for the publication and release criteria. Asset-rights and
-dependency-license evidence, including unresolved manual release gates, is recorded in
+[docs/release-checklist.md](./docs/release-checklist.md) for the release workflow. Asset-rights and dependency-license
+evidence is recorded in
 [docs/asset-provenance.md](./docs/asset-provenance.md) and [docs/third-party-licenses.md](./docs/third-party-licenses.md).
 
 ## License

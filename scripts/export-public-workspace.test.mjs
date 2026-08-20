@@ -15,7 +15,9 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join, parse, resolve } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { resolveSafeSourcePath } from "./export-public-workspace.mjs";
+import { validateProductFilterManifest } from "./check-public-release-manifests.mjs";
+import { parseExportArguments, ROOT_TEMPLATE_MAPPINGS, resolveSafeSourcePath } from "./export-public-workspace.mjs";
+import { parseSmokeArguments } from "./smoke-public-extensions.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exporterPath = join(repositoryRoot, "scripts/export-public-workspace.mjs");
@@ -26,7 +28,13 @@ const expectedReleasePreflightCommand =
   "pnpm check:public-boundary && pnpm licenses:check:public && pnpm format:check:public && pnpm lint:public && pnpm ui:quality";
 const expectedReleaseCommand = `pnpm release:preflight:public && pnpm ${publicApps
   .map((app) => `--filter ${app}`)
-  .join(" ")} --recursive --workspace-concurrency=4 release:check && pnpm licenses:check:release`;
+  .join(
+    " "
+  )} --recursive --workspace-concurrency=4 release:check && pnpm manifests:check:release && pnpm licenses:check:release`;
+const expectedPublicBuildCommand = `pnpm ${publicApps
+  .map((app) => `--filter ${app}`)
+  .join(" ")} --recursive --workspace-concurrency=4 build`;
+const expectedPublicE2eCommand = "pnpm build:public:extensions && pnpm test:e2e:public:built";
 
 after(() => {
   rmSync(temporaryRoot, { force: true, recursive: true });
@@ -88,6 +96,18 @@ test("the checked-in CI contract avoids duplicate release work", () => {
   assert.equal(rootPackage.scripts["release:check:public"], expectedReleaseCommand);
   assert.equal(packageTemplate.scripts["release:preflight:public"], expectedReleasePreflightCommand);
   assert.equal(packageTemplate.scripts["release:check:public"], expectedReleaseCommand);
+  assert.equal(rootPackage.scripts["build:public:extensions"], expectedPublicBuildCommand);
+  assert.equal(packageTemplate.scripts["build:public:extensions"], expectedPublicBuildCommand);
+  assert.equal(rootPackage.scripts["test:e2e:public"], expectedPublicE2eCommand);
+  assert.equal(packageTemplate.scripts["test:e2e:public"], expectedPublicE2eCommand);
+  assert.equal(rootPackage.scripts["test:e2e:public:built"], "node scripts/smoke-public-extensions.mjs");
+  assert.equal(packageTemplate.scripts["test:e2e:public:built"], "node scripts/smoke-public-extensions.mjs");
+  assert.equal(rootPackage.scripts["playwright:install:public"], "playwright install chromium");
+  assert.equal(packageTemplate.scripts["playwright:install:public"], "playwright install chromium");
+  assert.equal(rootPackage.devDependencies["@playwright/test"], "1.62.1");
+  assert.equal(packageTemplate.devDependencies["@playwright/test"], "1.62.1");
+  assert.equal(rootPackage.scripts["manifests:check:release"], "node scripts/check-public-release-manifests.mjs");
+  assert.equal(packageTemplate.scripts["manifests:check:release"], "node scripts/check-public-release-manifests.mjs");
 
   for (const app of publicApps) {
     const appPackage = JSON.parse(readFileSync(join(repositoryRoot, "apps", app, "package.json"), "utf8"));
@@ -105,9 +125,71 @@ test("the checked-in CI contract avoids duplicate release work", () => {
   assert.doesNotMatch(workflow, /^ {2}push:\s*$/m);
 });
 
+test("the smoke CLI rejects ambiguous or unknown arguments", () => {
+  assert.deepEqual(parseSmokeArguments(["--headed", "--app", "quick-notes"]), {
+    headed: true,
+    selectedApps: ["quick-notes"]
+  });
+  assert.deepEqual(parseSmokeArguments(["--app=time-zone-helper"]), {
+    headed: process.env.PW_HEADED === "1",
+    selectedApps: ["time-zone-helper"]
+  });
+  assert.throws(() => parseSmokeArguments(["--app"]), /requires one public extension name/i);
+  assert.throws(() => parseSmokeArguments(["--app="]), /requires one public extension name/i);
+  assert.throws(() => parseSmokeArguments(["--app", "quick-notes", "--app", "site-reset"]), /only be provided once/i);
+  assert.throws(() => parseSmokeArguments(["--app", "private-extension"]), /unknown public extension/i);
+  assert.throws(() => parseSmokeArguments(["quick-notes"]), /unknown smoke option/i);
+  assert.throws(() => parseSmokeArguments(["--headless"]), /unknown smoke option/i);
+});
+
+test("the product-filter release manifest contract is exact", () => {
+  assert.doesNotThrow(() =>
+    validateProductFilterManifest(
+      {
+        options_ui: {
+          page: "options.html",
+          open_in_tab: true
+        }
+      },
+      "test manifest"
+    )
+  );
+  assert.throws(
+    () => validateProductFilterManifest({ options_ui: { page: "options.html", open_in_tab: false } }, "test manifest"),
+    /must declare exactly options_ui/i
+  );
+  assert.throws(
+    () =>
+      validateProductFilterManifest(
+        { options_ui: { page: "options.html", open_in_tab: true, unexpected: true } },
+        "test manifest"
+      ),
+    /must declare exactly options_ui/i
+  );
+});
+
 test("requires one explicit destination", () => {
   assertRefused([], /explicit destination is required/i);
   assertRefused([join(temporaryRoot, "one"), join(temporaryRoot, "two")], /explicit destination is required/i);
+});
+
+test("the exporter CLI rejects ambiguous option combinations", () => {
+  assert.deepEqual(parseExportArguments(["--skip-install", "destination"]), {
+    destination: "destination",
+    help: false,
+    skipInstall: true
+  });
+  assert.deepEqual(parseExportArguments(["--", "--destination"]), {
+    destination: "--destination",
+    help: false,
+    skipInstall: false
+  });
+  assert.throws(
+    () => parseExportArguments(["--skip-install", "--skip-install", "destination"]),
+    /only be provided once/i
+  );
+  assert.throws(() => parseExportArguments(["--help", "destination"]), /cannot be combined/i);
+  assert.throws(() => parseExportArguments(["--unknown", "destination"]), /unknown option/i);
 });
 
 test("refuses a source file reached through an ancestor symlink", () => {
@@ -199,6 +281,8 @@ test("offline mode copies exactly the declared public workspace surface", () => 
   assert.equal(existsSync(join(destination, "apps/watched-filter/node_modules")), false);
   assert.equal(existsSync(join(destination, "apps/watched-filter/.output")), false);
   assert.equal(existsSync(join(destination, "apps/watched-filter/.wxt")), false);
+  assert.equal(existsSync(join(destination, "scripts/smoke-public-extensions.mjs")), true);
+  assert.equal(existsSync(join(destination, "scripts/check-public-release-manifests.mjs")), true);
 
   assert.equal(
     readFileSync(join(destination, "LICENSE"), "utf8"),
@@ -212,8 +296,8 @@ test("offline mode copies exactly the declared public workspace surface", () => 
   }
 
   assert.equal(
-    readFileSync(join(destination, "docs/open-source-readiness.md"), "utf8"),
-    readFileSync(join(repositoryRoot, "docs/public/OPEN_SOURCE_READINESS.md"), "utf8")
+    readFileSync(join(destination, "docs/release-checklist.md"), "utf8"),
+    readFileSync(join(repositoryRoot, "docs/public/RELEASE_CHECKLIST.md"), "utf8")
   );
   assert.equal(
     readFileSync(join(destination, ".prettierignore"), "utf8"),
@@ -228,6 +312,7 @@ test("offline mode copies exactly the declared public workspace surface", () => 
   for (const file of [
     "docs/license-overrides/react-remove-scroll-bar-2.3.8-LICENSE.txt",
     "docs/license-overrides/wxt-0.21.3-LICENSE.txt",
+    "scripts/check-public-release-manifests.mjs",
     "scripts/check-public-release-licenses.mjs",
     "scripts/generate-public-license-notices.mjs"
   ]) {
@@ -281,8 +366,64 @@ test("the export checker parses empty importers without treating nested keys as 
   assert.equal(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
 });
 
+test("the export checker requires byte-identical root template mappings", () => {
+  const destination = join(temporaryRoot, "checker-root-template-mappings");
+  const result = runExporter([destination, "--skip-install"]);
+  assert.equal(result.status, 0, combinedOutput(result));
+  rmSync(join(destination, ".public-export-incomplete"));
+  writeMinimalPublicLock(destination);
+
+  for (const [, rootPath] of ROOT_TEMPLATE_MAPPINGS) {
+    const fullPath = join(destination, rootPath);
+    writeFileSync(fullPath, Buffer.concat([readFileSync(fullPath), Buffer.from("\n")]));
+  }
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+  const output = combinedOutput(boundaryCheck);
+  assert.notEqual(boundaryCheck.status, 0, output);
+  for (const [templatePath, rootPath] of ROOT_TEMPLATE_MAPPINGS) {
+    assert.ok(output.includes(`${rootPath} has drifted from ${templatePath}`), `${rootPath}:\n${output}`);
+  }
+});
+
+test("the export checker pins the Playwright install contract", () => {
+  const destination = join(temporaryRoot, "checker-playwright-contract");
+  const result = runExporter([destination, "--skip-install"]);
+  assert.equal(result.status, 0, combinedOutput(result));
+  rmSync(join(destination, ".public-export-incomplete"));
+  writeMinimalPublicLock(destination);
+
+  for (const packagePath of ["package.json", "docs/public/package.json"]) {
+    const fullPath = join(destination, packagePath);
+    const manifest = JSON.parse(readFileSync(fullPath, "utf8"));
+    manifest.scripts["playwright:install:public"] = "playwright install";
+    manifest.devDependencies["@playwright/test"] = "^1.62.1";
+    writeFileSync(fullPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  }
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(
+    combinedOutput(boundaryCheck),
+    /playwright:install:public must be exactly "playwright install chromium"/i
+  );
+  assert.match(combinedOutput(boundaryCheck), /@playwright\/test must be pinned exactly to 1\.62\.1/i);
+});
+
 test("the filesystem fallback accepts an installed source archive without Git metadata", () => {
-  const destination = join(temporaryRoot, "installed-source-archive");
+  const outerRepository = join(temporaryRoot, "installed-source-parent-repository");
+  const destination = join(outerRepository, "installed-source-archive");
+  mkdirSync(outerRepository);
+  const initResult = spawnSync("git", ["-C", outerRepository, "init", "--quiet"], { encoding: "utf8" });
+  assert.equal(initResult.status, 0, combinedOutput(initResult));
   const result = runExporter([destination, "--skip-install"]);
   assert.equal(result.status, 0, combinedOutput(result));
   rmSync(join(destination, ".public-export-incomplete"));
@@ -291,6 +432,16 @@ test("the filesystem fallback accepts an installed source archive without Git me
   mkdirSync(join(destination, "node_modules/.pnpm"), { recursive: true });
   writeFileSync(join(destination, "node_modules/.pnpm/installation-marker"), "generated\n", "utf8");
   symlinkSync("../../node_modules", join(destination, "apps/watched-filter/node_modules"), "dir");
+  for (const generatedPath of [
+    "apps/watched-filter/.output/chrome-mv3/manifest.json",
+    "apps/watched-filter/.wxt/types.d.ts",
+    "apps/watched-filter/coverage/index.html",
+    "apps/watched-filter/dist/bundle.js",
+    "dist/release-summary.txt"
+  ]) {
+    mkdirSync(dirname(join(destination, generatedPath)), { recursive: true });
+    writeFileSync(join(destination, generatedPath), "generated\n", "utf8");
+  }
 
   const boundaryCheck = spawnSync(
     process.execPath,
@@ -337,9 +488,6 @@ test("the export checker rejects unexpected files and symlinks", () => {
   mkdirSync(unexpectedDirectory);
   writeFileSync(join(unexpectedDirectory, "README.md"), "must not be published\n", "utf8");
   symlinkSync("../README.md", join(destination, "docs/review-link"));
-  const generatedDirectory = join(destination, "apps/watched-filter/.output");
-  mkdirSync(generatedDirectory, { recursive: true });
-  writeFileSync(join(generatedDirectory, "leak.js"), "generated\n", "utf8");
   writeFileSync(join(destination, "apps/watched-filter/profile-export.pdf"), Buffer.from([0, 1, 2, 3]));
   writeFileSync(join(destination, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
 
@@ -354,7 +502,6 @@ test("the export checker rejects unexpected files and symlinks", () => {
   assert.match(combinedOutput(boundaryCheck), /unapproved-source\/README\.md/);
   assert.match(combinedOutput(boundaryCheck), /symlinks inside public paths/i);
   assert.match(combinedOutput(boundaryCheck), /generated, local, document, dump, or archive/i);
-  assert.match(combinedOutput(boundaryCheck), /apps\/watched-filter\/\.output/);
   assert.match(combinedOutput(boundaryCheck), /profile-export\.pdf/);
 });
 
@@ -422,7 +569,7 @@ test("the export checker detects public workflow template drift", () => {
   );
 
   assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
-  assert.match(combinedOutput(boundaryCheck), /workflow template.*drift|drifted.*workflow/i);
+  assert.match(combinedOutput(boundaryCheck), /\.github\/workflows\/ci\.yml has drifted from docs\/public\/ci\.yml/i);
 });
 
 test("the export checker detects public script template drift", () => {

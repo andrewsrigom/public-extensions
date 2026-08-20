@@ -11,6 +11,7 @@ export type I18nKey =
   | "globalPlaceholder"
   | "globalTerms"
   | "languageLabel"
+  | "manageRules"
   | "marketplace"
   | "modeDim"
   | "modeHide"
@@ -21,6 +22,9 @@ export type I18nKey =
   | "optionsSubtitle"
   | "optionsTitle"
   | "privacyLocal"
+  | "productIds"
+  | "productIdsHint"
+  | "productIdsPlaceholder"
   | "reasonId"
   | "reasonPlatformTerm"
   | "reasonTerm"
@@ -65,6 +69,7 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     globalPlaceholder: "vaporizador, smart tv...",
     globalTerms: "Termos globais",
     languageLabel: "Idioma",
+    manageRules: "Gerenciar todas as regras",
     marketplace: "Marketplace",
     modeDim: "Deixar opaco",
     modeHide: "Ocultar card",
@@ -76,6 +81,9 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     optionsSubtitle: "Configure regras para ocultar cards de produtos em marketplaces suportados.",
     optionsTitle: "Hide Products - Opcoes",
     privacyLocal: "Privado e local",
+    productIds: "IDs de produto",
+    productIdsHint: "Um ID por linha. IDs e ASINs são normalizados em maiúsculas e valem para todos os marketplaces.",
+    productIdsPlaceholder: "B0ABC12345",
     reasonId: "ID: {id}",
     reasonPlatformTerm: "Termo do site: {term}",
     reasonTerm: "Termo: {term}",
@@ -120,6 +128,7 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     globalPlaceholder: "vaporizer, smart tv...",
     globalTerms: "Global terms",
     languageLabel: "Language",
+    manageRules: "Manage all rules",
     marketplace: "Marketplace",
     modeDim: "Dim",
     modeHide: "Hide card",
@@ -131,6 +140,10 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     optionsSubtitle: "Configure rules to hide product cards on supported marketplaces.",
     optionsTitle: "Hide Products - Options",
     privacyLocal: "Private and local",
+    productIds: "Product IDs",
+    productIdsHint:
+      "One ID per line. Product IDs and ASINs are normalized to uppercase and apply across all marketplaces.",
+    productIdsPlaceholder: "B0ABC12345",
     reasonId: "ID: {id}",
     reasonPlatformTerm: "Site term: {term}",
     reasonTerm: "Term: {term}",
@@ -174,6 +187,7 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     globalPlaceholder: "vaporizador, smart tv...",
     globalTerms: "Terminos globales",
     languageLabel: "Idioma",
+    manageRules: "Administrar todas las reglas",
     marketplace: "Marketplace",
     modeDim: "Atenuar",
     modeHide: "Ocultar tarjeta",
@@ -185,6 +199,9 @@ const DICTIONARIES: Record<ResolvedLanguage, Record<I18nKey, string>> = {
     optionsSubtitle: "Configura reglas para ocultar tarjetas de productos en marketplaces compatibles.",
     optionsTitle: "Hide Products - Opciones",
     privacyLocal: "Privado y local",
+    productIds: "IDs de producto",
+    productIdsHint: "Un ID por línea. Los IDs y ASIN se normalizan a mayúsculas y se aplican a todos los marketplaces.",
+    productIdsPlaceholder: "B0ABC12345",
     reasonId: "ID: {id}",
     reasonPlatformTerm: "Termino del sitio: {term}",
     reasonTerm: "Termino: {term}",

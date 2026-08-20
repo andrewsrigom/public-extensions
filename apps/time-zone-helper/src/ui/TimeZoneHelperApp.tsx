@@ -64,7 +64,7 @@ export function TimeZoneHelperApp() {
   const localTimeZone = useMemo(() => getLocalTimeZone(), []);
   const [settings, setSettings] = useState<Settings>(() => getFallbackSettings(localTimeZone));
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
-  const [hasStorageError, setHasStorageError] = useState(false);
+  const [storageError, setStorageError] = useState<"load" | "save" | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [isMonitorFormOpen, setIsMonitorFormOpen] = useState(false);
   const [monitorLabel, setMonitorLabel] = useState("");
@@ -113,16 +113,17 @@ export function TimeZoneHelperApp() {
   useEffect(() => {
     let mounted = true;
 
-    void loadSettings(localTimeZone)
-      .then((storedSettings) => {
+    void loadSettings(localTimeZone).then(
+      (storedSettings) => {
         if (!mounted) return;
         setSettings(storedSettings);
-      })
-      .finally(() => {
-        if (mounted) {
-          setIsSettingsLoaded(true);
-        }
-      });
+        setStorageError(null);
+        setIsSettingsLoaded(true);
+      },
+      () => {
+        if (mounted) setStorageError("load");
+      }
+    );
 
     return () => {
       mounted = false;
@@ -140,10 +141,10 @@ export function TimeZoneHelperApp() {
     let active = true;
     void saveSettings(settings).then(
       () => {
-        if (active) setHasStorageError(false);
+        if (active) setStorageError(null);
       },
       () => {
-        if (active) setHasStorageError(true);
+        if (active) setStorageError("save");
       }
     );
 
@@ -153,6 +154,8 @@ export function TimeZoneHelperApp() {
   }, [isSettingsLoaded, settings]);
 
   function updateSettings(patch: Partial<Settings>): void {
+    if (!isSettingsLoaded) return;
+
     setSettings((current) => ({
       ...current,
       ...patch
@@ -174,6 +177,8 @@ export function TimeZoneHelperApp() {
   }
 
   function addMonitor(): void {
+    if (!isSettingsLoaded) return;
+
     const timeZone = normalizeTimeZoneInput(monitorTimeZone);
 
     if (!isValidTimeZoneSetting(timeZone)) {
@@ -195,6 +200,8 @@ export function TimeZoneHelperApp() {
   }
 
   function removeMonitor(monitorId: string): void {
+    if (!isSettingsLoaded) return;
+
     setSettings((current) => ({
       ...current,
       monitors: current.monitors.filter((monitor) => monitor.id !== monitorId)
@@ -213,9 +220,13 @@ export function TimeZoneHelperApp() {
             theme={theme}
             themeLabel={t("theme", settings.language)}
             themeLabels={getThemeLabels(settings.language)}
-            onChangeLanguage={(language) => {
-              updateSettings({ language });
-            }}
+            onChangeLanguage={
+              isSettingsLoaded
+                ? (language) => {
+                    updateSettings({ language });
+                  }
+                : undefined
+            }
             onChangeTheme={setTheme}
           />
         }
@@ -224,157 +235,163 @@ export function TimeZoneHelperApp() {
         title={t("appTitle", settings.language)}
       />
 
-      {hasStorageError ? <StatusNotice tone="danger">{t("storageError", settings.language)}</StatusNotice> : null}
+      {storageError ? (
+        <StatusNotice tone="danger">
+          {t(storageError === "load" ? "storageLoadError" : "storageError", settings.language)}
+        </StatusNotice>
+      ) : null}
 
-      <LocalClock language={settings.language} locale={locale} now={now} timeZone={localTimeZone} />
+      <fieldset className="contents" disabled={!isSettingsLoaded}>
+        <LocalClock language={settings.language} locale={locale} now={now} timeZone={localTimeZone} />
 
-      <Section
-        actions={
-          isMonitorFormOpen ? null : (
-            <Button onClick={openMonitorForm} size="sm" type="button" variant="secondary">
-              <Plus aria-hidden size={16} />
-              {t("add", settings.language)}
-            </Button>
-          )
-        }
-        title={t("monitors", settings.language)}
-      >
-        {isMonitorFormOpen ? (
-          <form
-            className="grid gap-2.5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              addMonitor();
-            }}
-          >
-            <Field label={t("monitorName", settings.language)}>
-              <Input
-                autoComplete="off"
-                onChange={(event) => {
-                  setMonitorLabel(event.target.value);
-                }}
-                placeholder={t("monitorNamePlaceholder", settings.language)}
-                value={monitorLabel}
-              />
-            </Field>
-
-            <Field label={t("monitorLabel", settings.language)}>
-              <Combobox
-                aria-label={t("monitorLabel", settings.language)}
-                emptyLabel={t("emptyTimeZone", settings.language)}
-                onValueChange={(timeZone) => {
-                  setMonitorTimeZone(timeZone);
-                  setMonitorError("");
-                }}
-                options={timeZoneComboboxOptions}
-                placeholder="America/Los_Angeles"
-                searchPlaceholder={t("searchTimeZone", settings.language)}
-                value={monitorTimeZone}
-              />
-            </Field>
-
-            {monitorError ? <StatusNotice tone="danger">{monitorError}</StatusNotice> : null}
-
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <Button type="submit">{t("save", settings.language)}</Button>
-              <Button onClick={closeMonitorForm} type="button" variant="ghost">
-                {t("cancel", settings.language)}
+        <Section
+          actions={
+            isMonitorFormOpen ? null : (
+              <Button onClick={openMonitorForm} size="sm" type="button" variant="secondary">
+                <Plus aria-hidden size={16} />
+                {t("add", settings.language)}
               </Button>
-            </div>
-          </form>
-        ) : null}
+            )
+          }
+          title={t("monitors", settings.language)}
+        >
+          {isMonitorFormOpen ? (
+            <form
+              className="grid gap-2.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addMonitor();
+              }}
+            >
+              <Field label={t("monitorName", settings.language)}>
+                <Input
+                  autoComplete="off"
+                  onChange={(event) => {
+                    setMonitorLabel(event.target.value);
+                  }}
+                  placeholder={t("monitorNamePlaceholder", settings.language)}
+                  value={monitorLabel}
+                />
+              </Field>
 
-        {settings.monitors.length > 0 ? (
-          <div aria-live="polite" className="grid gap-2">
-            {settings.monitors.map((monitor) => (
-              <MonitorCard
-                key={monitor.id}
-                language={settings.language}
+              <Field label={t("monitorLabel", settings.language)}>
+                <Combobox
+                  aria-label={t("monitorLabel", settings.language)}
+                  emptyLabel={t("emptyTimeZone", settings.language)}
+                  onValueChange={(timeZone) => {
+                    setMonitorTimeZone(timeZone);
+                    setMonitorError("");
+                  }}
+                  options={timeZoneComboboxOptions}
+                  placeholder="America/Los_Angeles"
+                  searchPlaceholder={t("searchTimeZone", settings.language)}
+                  value={monitorTimeZone}
+                />
+              </Field>
+
+              {monitorError ? <StatusNotice tone="danger">{monitorError}</StatusNotice> : null}
+
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <Button type="submit">{t("save", settings.language)}</Button>
+                <Button onClick={closeMonitorForm} type="button" variant="ghost">
+                  {t("cancel", settings.language)}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+
+          {settings.monitors.length > 0 ? (
+            <div aria-live="polite" className="grid gap-2">
+              {settings.monitors.map((monitor) => (
+                <MonitorCard
+                  key={monitor.id}
+                  language={settings.language}
+                  locale={locale}
+                  monitor={monitor}
+                  now={now}
+                  onRemove={removeMonitor}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState>{t("emptyMonitors", settings.language)}</EmptyState>
+          )}
+        </Section>
+
+        <Section
+          subtitle={
+            isConvertZoneValid
+              ? `${getTimeZoneDisplayName(normalizedConvertTimeZone)} -> ${t("convertToLocal", settings.language)}`
+              : t("convertToLocal", settings.language)
+          }
+          title={
+            <span className="inline-flex items-center gap-2">
+              <ArrowRightLeft aria-hidden className="text-[var(--extension-primary)]" size={18} />
+              {t("convert", settings.language)}
+            </span>
+          }
+        >
+          <Field label={t("convertSourceLabel", settings.language)}>
+            <Combobox
+              aria-label={t("convertSourceLabel", settings.language)}
+              emptyLabel={t("emptyTimeZone", settings.language)}
+              onValueChange={(timeZone) => {
+                updateSettings({ convertTimeZone: normalizeTimeZoneInput(timeZone) });
+              }}
+              options={timeZoneComboboxOptions}
+              placeholder="America/New_York"
+              searchPlaceholder={t("searchTimeZone", settings.language)}
+              value={settings.convertTimeZone}
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={t("convertDate", settings.language)}>
+              <DatePicker
+                aria-label={t("convertDate", settings.language)}
                 locale={locale}
-                monitor={monitor}
-                now={now}
-                onRemove={removeMonitor}
+                onValueChange={(convertDate) => {
+                  updateSettings({ convertDate });
+                }}
+                placeholder={t("convertDate", settings.language)}
+                value={settings.convertDate}
               />
-            ))}
+            </Field>
+
+            <Field label={t("convertTime", settings.language)}>
+              <Input
+                onChange={(event) => {
+                  updateSettings({ convertTime: event.target.value });
+                }}
+                step={60}
+                type="time"
+                value={settings.convertTime}
+              />
+            </Field>
           </div>
-        ) : (
-          <EmptyState>{t("emptyMonitors", settings.language)}</EmptyState>
-        )}
-      </Section>
 
-      <Section
-        subtitle={
-          isConvertZoneValid
-            ? `${getTimeZoneDisplayName(normalizedConvertTimeZone)} -> ${t("convertToLocal", settings.language)}`
-            : t("convertToLocal", settings.language)
-        }
-        title={
-          <span className="inline-flex items-center gap-2">
-            <ArrowRightLeft aria-hidden className="text-[var(--extension-primary)]" size={18} />
-            {t("convert", settings.language)}
-          </span>
-        }
-      >
-        <Field label={t("convertSourceLabel", settings.language)}>
-          <Combobox
-            aria-label={t("convertSourceLabel", settings.language)}
-            emptyLabel={t("emptyTimeZone", settings.language)}
-            onValueChange={(timeZone) => {
-              updateSettings({ convertTimeZone: normalizeTimeZoneInput(timeZone) });
-            }}
-            options={timeZoneComboboxOptions}
-            placeholder="America/New_York"
-            searchPlaceholder={t("searchTimeZone", settings.language)}
-            value={settings.convertTimeZone}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Field label={t("convertDate", settings.language)}>
-            <DatePicker
-              aria-label={t("convertDate", settings.language)}
-              locale={locale}
-              onValueChange={(convertDate) => {
-                updateSettings({ convertDate });
-              }}
-              placeholder={t("convertDate", settings.language)}
-              value={settings.convertDate}
-            />
-          </Field>
-
-          <Field label={t("convertTime", settings.language)}>
-            <Input
-              onChange={(event) => {
-                updateSettings({ convertTime: event.target.value });
-              }}
-              step={60}
-              type="time"
-              value={settings.convertTime}
-            />
-          </Field>
-        </div>
-
-        {conversion.status === "ready" ? (
-          <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-[color-mix(in_srgb,var(--extension-primary)_28%,var(--extension-border))] bg-[color-mix(in_srgb,var(--extension-primary)_10%,var(--extension-surface))] p-3">
-            <div className="row-span-3 grid size-10 place-items-center rounded-full bg-[color-mix(in_srgb,var(--extension-primary)_22%,transparent)] text-[var(--extension-primary)]">
-              <CalendarClock aria-hidden size={20} />
-            </div>
-            <span className="truncate text-sm font-semibold text-[var(--extension-muted)]">
-              {conversion.sourceTime}
-            </span>
-            <ZonedTime
-              abbreviation={conversion.localAbbreviation}
-              className="text-[30px]"
-              time={conversion.targetTime}
-            />
-            <span className="truncate text-xs font-semibold text-[var(--extension-muted)]">
-              {conversion.targetDate}
-            </span>
-          </Card>
-        ) : (
-          <EmptyState>{conversion.message}</EmptyState>
-        )}
-      </Section>
+          {conversion.status === "ready" ? (
+            <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-[color-mix(in_srgb,var(--extension-primary)_28%,var(--extension-border))] bg-[color-mix(in_srgb,var(--extension-primary)_10%,var(--extension-surface))] p-3">
+              <div className="row-span-3 grid size-10 place-items-center rounded-full bg-[color-mix(in_srgb,var(--extension-primary)_22%,transparent)] text-[var(--extension-primary)]">
+                <CalendarClock aria-hidden size={20} />
+              </div>
+              <span className="truncate text-sm font-semibold text-[var(--extension-muted)]">
+                {conversion.sourceTime}
+              </span>
+              <ZonedTime
+                abbreviation={conversion.localAbbreviation}
+                className="text-[30px]"
+                time={conversion.targetTime}
+              />
+              <span className="truncate text-xs font-semibold text-[var(--extension-muted)]">
+                {conversion.targetDate}
+              </span>
+            </Card>
+          ) : (
+            <EmptyState>{conversion.message}</EmptyState>
+          )}
+        </Section>
+      </fieldset>
     </PopupShell>
   );
 }

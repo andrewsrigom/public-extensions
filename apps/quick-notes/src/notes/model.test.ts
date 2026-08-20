@@ -30,13 +30,20 @@ describe("quick notes model", () => {
     expect(getSiteKeyFromUrl("not a url")).toBeNull();
   });
 
-  it("automatically tags new notes with the current site when available", () => {
+  it("creates global and current-site notes from an explicit scope without changing the stored shape", () => {
     const siteNote = createQuickNote({
       context,
+      scope: "site",
+      now: new Date("2026-07-08T12:00:00.000Z")
+    });
+    const globalNote = createQuickNote({
+      context,
+      scope: "global",
       now: new Date("2026-07-08T12:00:00.000Z")
     });
     const fallbackNote = createQuickNote({
       context: createPageContext({ url: "chrome://extensions", title: "Extensions" }),
+      scope: "site",
       now: new Date("2026-07-08T12:00:00.000Z")
     });
 
@@ -46,10 +53,16 @@ describe("quick notes model", () => {
       pageTitle: "Senior Developer",
       createdAt: "2026-07-08T12:00:00.000Z"
     });
+    expect(globalNote).toMatchObject({
+      scope: "global",
+      pageTitle: "Senior Developer",
+      pageUrl: "https://www.example.com/jobs/123"
+    });
+    expect(globalNote.siteKey).toBeUndefined();
     expect(fallbackNote.scope).toBe("global");
   });
 
-  it("shows all notes in the global view and filters the current site by its saved tag", () => {
+  it("shows every scope in the all view and filters the current site by its saved tag", () => {
     const notes = [
       note({ id: "global", scope: "global", content: "Remember this everywhere" }),
       note({ id: "current", scope: "site", siteKey: "example.com", content: "Only here" }),
@@ -57,13 +70,9 @@ describe("quick notes model", () => {
       note({ id: "archived", scope: "global", archived: true, content: "Hidden note" })
     ];
 
-    expect(filterNotes(notes, { context, scope: "global" }).map(({ id }) => id)).toEqual([
-      "current",
-      "other",
-      "global"
-    ]);
+    expect(filterNotes(notes, { context, scope: "all" }).map(({ id }) => id)).toEqual(["current", "other", "global"]);
     expect(filterNotes(notes, { context, scope: "site" }).map(({ id }) => id)).toEqual(["current"]);
-    expect(filterNotes(notes, { context, scope: "global", visibility: "archived" }).map(({ id }) => id)).toEqual([
+    expect(filterNotes(notes, { context, scope: "all", visibility: "archived" }).map(({ id }) => id)).toEqual([
       "archived"
     ]);
   });
@@ -93,7 +102,7 @@ describe("quick notes model", () => {
       true
     );
 
-    expect(filterNotes([recent, olderPinned], { context, scope: "global" }).map(({ id }) => id)).toEqual([
+    expect(filterNotes([recent, olderPinned], { context, scope: "all" }).map(({ id }) => id)).toEqual([
       "pinned",
       "recent"
     ]);
@@ -106,8 +115,8 @@ describe("quick notes model", () => {
       note({ id: "two", scope: "global", content: "Shopping list" })
     ];
 
-    expect(filterNotes(notes, { context, scope: "global", query: "currículo" }).map(({ id }) => id)).toEqual(["one"]);
-    expect(filterNotes(notes, { context, scope: "global", query: "lead" }).map(({ id }) => id)).toEqual(["one"]);
+    expect(filterNotes(notes, { context, scope: "all", query: "currículo" }).map(({ id }) => id)).toEqual(["one"]);
+    expect(filterNotes(notes, { context, scope: "all", query: "lead" }).map(({ id }) => id)).toEqual(["one"]);
   });
 
   it("updates note content and removes empty notes before persistence", () => {

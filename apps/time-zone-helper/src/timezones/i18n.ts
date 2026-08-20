@@ -24,6 +24,7 @@ export type TimeZoneMessageKey =
   | "removeMonitor"
   | "save"
   | "storageError"
+  | "storageLoadError"
   | "searchTimeZone"
   | "selectTimeZone"
   | "theme"
@@ -57,6 +58,7 @@ const DICTIONARIES: Record<TimeZoneLanguage, Record<TimeZoneMessageKey, string>>
     removeMonitor: "Remover monitor",
     save: "Salvar",
     storageError: "Não foi possível salvar suas preferências. Mantenha o popup aberto e tente novamente.",
+    storageLoadError: "Não foi possível carregar suas preferências. Feche e reabra o popup antes de alterá-las.",
     searchTimeZone: "Buscar fusos horários...",
     selectTimeZone: "Escolha um fuso horário.",
     theme: "Tema",
@@ -89,6 +91,7 @@ const DICTIONARIES: Record<TimeZoneLanguage, Record<TimeZoneMessageKey, string>>
     removeMonitor: "Remove monitor",
     save: "Save",
     storageError: "Your preferences could not be saved. Keep the popup open and try again.",
+    storageLoadError: "Your saved settings could not be loaded. Close and reopen the popup before making changes.",
     searchTimeZone: "Search time zones...",
     selectTimeZone: "Choose a time zone.",
     theme: "Theme",
@@ -121,6 +124,7 @@ const DICTIONARIES: Record<TimeZoneLanguage, Record<TimeZoneMessageKey, string>>
     removeMonitor: "Eliminar monitor",
     save: "Guardar",
     storageError: "No se pudieron guardar tus preferencias. Mantén abierto el popup e inténtalo de nuevo.",
+    storageLoadError: "No se pudieron cargar tus preferencias. Cierra y vuelve a abrir el popup antes de cambiarlas.",
     searchTimeZone: "Buscar zona horaria...",
     selectTimeZone: "Elige una zona horaria.",
     theme: "Tema",

@@ -22,13 +22,15 @@ export const SETTINGS_KEY = "time-zone-helper:settings";
 let settingsWriteQueue: Promise<void> = Promise.resolve();
 
 export async function loadSettings(localTimeZone: string): Promise<Settings> {
+  let stored: Record<string, unknown>;
   try {
-    const stored = await browser.storage.local.get(SETTINGS_KEY);
-    if (stored[SETTINGS_KEY] !== undefined) {
-      return normalizeStoredSettings(stored[SETTINGS_KEY], localTimeZone);
-    }
-  } catch {
-    // Restricted contexts can make extension storage unavailable in tests or previews.
+    stored = await browser.storage.local.get(SETTINGS_KEY);
+  } catch (error) {
+    throw new Error("Could not read time-zone-helper settings.", { cause: error });
+  }
+
+  if (stored[SETTINGS_KEY] !== undefined) {
+    return normalizeStoredSettings(stored[SETTINGS_KEY], localTimeZone);
   }
 
   const legacySettings = readLegacyLocalStorageSettings(localTimeZone);

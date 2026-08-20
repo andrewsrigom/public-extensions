@@ -29,6 +29,8 @@ export type PathSwitchMessageKey =
   | "privacyLocal"
   | "quickTipText"
   | "quickTipTitle"
+  | "redirectPreview"
+  | "redirectPreviewTitle"
   | "rules"
   | "saveRule"
   | "sourceHint"
@@ -54,7 +56,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     conditionExactSourceHost: "Only exact source host",
     conditionNone: "Any matching URL",
     delete: "Delete",
-    destinationHint: "Use a full URL like https://www.amazon.com.br/",
+    destinationHint:
+      "Use a full URL. This is a fixed destination: the source path, query, and fragment are not preserved.",
     destinationLabel: "Destination URL",
     disabled: "Disabled",
     dismissQuickTip: "Dismiss quick tip",
@@ -73,6 +76,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     privacyLocal: "Private and local",
     quickTipText: "Use * to match any path, for example amazon.com/*.",
     quickTipTitle: "Quick tip",
+    redirectPreview: "{source} → {destination}",
+    redirectPreviewTitle: "Redirect preview",
     rules: "Rules",
     saveRule: "Save Rule",
     sourceHint: "Use * to match any path. Example: amazon.com/*",
@@ -84,7 +89,7 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     themeSystem: "System",
     validationCycle: "These enabled rules create a redirect loop. Change a source or destination before saving.",
     validationDestination: "Enter a valid destination URL.",
-    validationSource: "Enter a source pattern.",
+    validationSource: "Enter a valid source pattern.",
     versionLabel: "PathSwitch {version}"
   },
   es: {
@@ -97,7 +102,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     conditionExactSourceHost: "Solo dominio de origen exacto",
     conditionNone: "Cualquier URL compatible",
     delete: "Eliminar",
-    destinationHint: "Usa una URL completa como https://www.amazon.com.br/",
+    destinationHint:
+      "Usa una URL completa. Este destino es fijo: la ruta, la consulta y el fragmento de origen no se conservan.",
     destinationLabel: "URL de destino",
     disabled: "Desactivado",
     dismissQuickTip: "Ocultar consejo rapido",
@@ -116,6 +122,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     privacyLocal: "Privado y local",
     quickTipText: "Usa * para combinar cualquier ruta, por ejemplo amazon.com/*.",
     quickTipTitle: "Consejo rapido",
+    redirectPreview: "{source} → {destination}",
+    redirectPreviewTitle: "Vista previa de redirección",
     rules: "Reglas",
     saveRule: "Guardar regla",
     sourceHint: "Usa * para combinar cualquier ruta. Ejemplo: amazon.com/*",
@@ -127,7 +135,7 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     themeSystem: "Sistema",
     validationCycle: "Estas reglas activas crean un bucle de redireccion. Cambia un origen o destino antes de guardar.",
     validationDestination: "Ingresa una URL de destino valida.",
-    validationSource: "Ingresa un patron de origen.",
+    validationSource: "Ingresa un patrón de origen válido.",
     versionLabel: "PathSwitch {version}"
   },
   "pt-BR": {
@@ -140,7 +148,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     conditionExactSourceHost: "Somente dominio de origem exato",
     conditionNone: "Qualquer URL correspondente",
     delete: "Excluir",
-    destinationHint: "Use uma URL completa como https://www.amazon.com.br/",
+    destinationHint:
+      "Use uma URL completa. Este destino é fixo: caminho, consulta e fragmento da origem não são preservados.",
     destinationLabel: "URL de destino",
     disabled: "Desativado",
     dismissQuickTip: "Ocultar dica rapida",
@@ -159,6 +168,8 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     privacyLocal: "Privado e local",
     quickTipText: "Use * para combinar qualquer caminho, por exemplo amazon.com/*.",
     quickTipTitle: "Dica rapida",
+    redirectPreview: "{source} → {destination}",
+    redirectPreviewTitle: "Prévia do redirecionamento",
     rules: "Regras",
     saveRule: "Salvar Regra",
     sourceHint: "Use * para combinar qualquer caminho. Exemplo: amazon.com/*",
@@ -171,7 +182,7 @@ const DICTIONARIES: Record<PathSwitchLanguage, Record<PathSwitchMessageKey, stri
     validationCycle:
       "Estas regras ativas criam um loop de redirecionamento. Altere uma origem ou destino antes de salvar.",
     validationDestination: "Informe uma URL de destino valida.",
-    validationSource: "Informe um padrao de origem.",
+    validationSource: "Informe um padrão de origem válido.",
     versionLabel: "PathSwitch {version}"
   }
 };

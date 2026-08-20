@@ -9,6 +9,8 @@ Hide Unwanted Products is a WXT extension for hiding marketplace product cards b
 - Matches rules by:
   - global term in product title, ignoring case and accents
   - platform-specific term in product title, configured from the popup while a supported marketplace is open
+  - product ID or ASIN, managed from the options page opened through the popup; ID rules apply globally across the
+    supported marketplaces
 - Supports three visual modes:
   - hide
   - dim

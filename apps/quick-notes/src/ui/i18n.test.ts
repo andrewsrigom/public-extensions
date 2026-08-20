@@ -16,4 +16,12 @@ describe("quick notes i18n", () => {
     expect(getNoteMessages("es").confirmDelete).toBe("Confirmar eliminación");
     expect(getNoteMessages("en").tagged("example.com")).toBe("Tagged example.com");
   });
+
+  it("labels the all filter and explicit note scopes", () => {
+    expect(getNoteMessages("en").all).toBe("All");
+    expect(getNoteMessages("pt-BR").all).toBe("Todas");
+    expect(getNoteMessages("es").all).toBe("Todas");
+    expect(getNoteMessages("pt-BR").globalNote).toBe("Nota global");
+    expect(getNoteMessages("pt-BR").siteNote("example.com")).toBe("Nota deste site · example.com");
+  });
 });

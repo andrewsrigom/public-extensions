@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ROOT_TEMPLATE_MAPPINGS } from "./export-public-workspace.mjs";
 
 const repositoryRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const modeArgument = process.argv[2];
@@ -31,6 +32,8 @@ const publicComponents = [
 ];
 const licenseGeneratorPath = "scripts/generate-public-license-notices.mjs";
 const releaseLicenseCheckerPath = "scripts/check-public-release-licenses.mjs";
+const releaseManifestCheckerPath = "scripts/check-public-release-manifests.mjs";
+const publicExtensionSmokePath = "scripts/smoke-public-extensions.mjs";
 const licenseOverridePaths = [
   "docs/license-overrides/react-remove-scroll-bar-2.3.8-LICENSE.txt",
   "docs/license-overrides/wxt-0.21.3-LICENSE.txt"
@@ -55,18 +58,23 @@ const requiredRepositoryFiles = [
   ...licenseOverridePaths,
   "docs/asset-provenance.md",
   "docs/third-party-licenses.md",
-  "docs/open-source-readiness.md"
+  "docs/release-checklist.md"
 ];
 const requiredAppDocuments = ["README.md", "PRIVACY.md", "CHANGELOG.md"];
 const requiredAppLegalDocuments = ["public/LICENSE", "public/THIRD_PARTY_NOTICES.txt"];
 const publicRootScripts = [
+  "build:public:extensions",
   "format:check:public",
   "licenses:check:release",
   "licenses:check:public",
   "lint:public",
+  "manifests:check:release",
   "quality:public",
+  "playwright:install:public",
   "release:preflight:public",
-  "release:check:public"
+  "release:check:public",
+  "test:e2e:public",
+  "test:e2e:public:built"
 ];
 const expectedAppReleaseCommand = "pnpm typecheck && pnpm test:run && pnpm zip";
 const expectedPublicReleasePreflightCommand =
@@ -74,7 +82,14 @@ const expectedPublicReleasePreflightCommand =
 const publicAppReleaseCommand = `pnpm ${publicApps
   .map((app) => `--filter ${app}`)
   .join(" ")} --recursive --workspace-concurrency=4 release:check`;
-const expectedPublicReleaseCommand = `pnpm release:preflight:public && ${publicAppReleaseCommand} && pnpm licenses:check:release`;
+const expectedPublicReleaseCommand = `pnpm release:preflight:public && ${publicAppReleaseCommand} && pnpm manifests:check:release && pnpm licenses:check:release`;
+const expectedPublicBuildCommand = `pnpm ${publicApps
+  .map((app) => `--filter ${app}`)
+  .join(" ")} --recursive --workspace-concurrency=4 build`;
+const expectedPublicE2eBuiltCommand = `node ${publicExtensionSmokePath}`;
+const expectedPublicE2eCommand = "pnpm build:public:extensions && pnpm test:e2e:public:built";
+const expectedPlaywrightInstallCommand = "playwright install chromium";
+const expectedPlaywrightVersion = "1.62.1";
 const workspaceQualityAllScripts = ["check:public-boundary", "test:public-export", "licenses:check:public"];
 const workspaceMetadataFiles = ["pnpm-workspace.yaml", "pnpm-lock.yaml"];
 const privateProductPattern =
@@ -87,6 +102,8 @@ const workspacePublicFiles = new Set([
   "package.json",
   "docs/chrome-web-store-publishing.md",
   licenseGeneratorPath,
+  releaseManifestCheckerPath,
+  publicExtensionSmokePath,
   scannerRelativePath
 ]);
 const incompleteMarkerName = ".public-export-incomplete";
@@ -112,13 +129,13 @@ const expectedExportFiles = new Set([
   "docs/asset-provenance.md",
   "docs/chrome-web-store-publishing.md",
   ...licenseOverridePaths,
-  "docs/open-source-readiness.md",
+  "docs/release-checklist.md",
   "docs/third-party-licenses.md",
   "docs/public/.gitignore",
   "docs/public/.prettierignore",
   "docs/public/ci.yml",
   "docs/public/LICENSE",
-  "docs/public/OPEN_SOURCE_READINESS.md",
+  "docs/public/RELEASE_CHECKLIST.md",
   "docs/public/package.json",
   "docs/public/pnpm-workspace.yaml",
   "docs/public/README.md",
@@ -129,6 +146,8 @@ const expectedExportFiles = new Set([
   "prettier.config.mjs",
   licenseGeneratorPath,
   releaseLicenseCheckerPath,
+  releaseManifestCheckerPath,
+  publicExtensionSmokePath,
   scannerRelativePath,
   "scripts/export-public-workspace.mjs",
   "scripts/export-public-workspace.test.mjs"
@@ -186,9 +205,6 @@ function walkFallback(directory, collected = []) {
     if (ignoredInstallationEntries.has(entry.name)) continue;
 
     if (entry.isDirectory() && skippedDirectoryContents.has(entry.name)) {
-      if (!isWorkspaceMode) {
-        collected.push(relativeEntryPath);
-      }
       continue;
     }
 
@@ -204,13 +220,32 @@ function walkFallback(directory, collected = []) {
 
 function repositoryFiles() {
   try {
+    const gitTopLevel = execFileSync("git", ["-C", repositoryRoot, "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+    if (!gitTopLevel || realpathSync(gitTopLevel) !== repositoryRoot) {
+      throw new Error("The publication snapshot is not the root of its own Git worktree.");
+    }
+
     const output = execFileSync(
       "git",
       ["-C", repositoryRoot, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
     );
     notes.push("File inventory: Git tracked files plus non-ignored untracked files.");
-    return [...new Set(output.split("\0").filter(Boolean).map(normalizePath))];
+    return [
+      ...new Set(
+        output
+          .split("\0")
+          .filter(Boolean)
+          .map(normalizePath)
+          // `git ls-files --cached` still reports paths deleted in the working
+          // tree. Validate the snapshot on disk so legitimate renames can run
+          // the boundary gate before they are staged.
+          .filter((relativePath) => existsSync(absolutePath(relativePath)))
+      )
+    ];
   } catch {
     notes.push("File inventory: filesystem fallback; generated directory contents were not traversed.");
     return walkFallback(repositoryRoot);
@@ -265,26 +300,25 @@ function checkPublicTemplateManifestDrift() {
   }
 }
 
-function checkPublicTemplateWorkflowDrift() {
+function checkRootTemplateMappingDrift() {
   if (isWorkspaceMode) {
     return;
   }
 
-  const workflowPath = ".github/workflows/ci.yml";
-  const templatePath = "docs/public/ci.yml";
-
-  try {
-    const workflow = readFileSync(absolutePath(workflowPath));
-    const template = readFileSync(absolutePath(templatePath));
-    if (!workflow.equals(template)) {
-      addError(
-        "ci",
-        `${templatePath} has drifted from ${workflowPath}; publication would replace the tested workflow.`
-      );
+  for (const [templatePath, rootPath] of ROOT_TEMPLATE_MAPPINGS) {
+    try {
+      const template = readFileSync(absolutePath(templatePath));
+      const rootFile = readFileSync(absolutePath(rootPath));
+      if (!template.equals(rootFile)) {
+        addError(
+          "metadata",
+          `${rootPath} has drifted from ${templatePath}; publication would replace the reviewed root file.`
+        );
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      addError("metadata", `${templatePath} and ${rootPath} could not be compared: ${detail}`);
     }
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    addError("ci", `The public workflow template could not be compared: ${detail}`);
   }
 }
 
@@ -431,6 +465,8 @@ function checkDocumentation() {
   }
   checkRequiredFile(licenseGeneratorPath, "licenses");
   checkRequiredFile(releaseLicenseCheckerPath, "licenses");
+  checkRequiredFile(releaseManifestCheckerPath, "release");
+  checkRequiredFile(publicExtensionSmokePath, "tests");
 
   for (const app of publicApps) {
     for (const document of [...requiredAppDocuments, ...requiredAppLegalDocuments]) {
@@ -469,6 +505,15 @@ function checkPackageScripts(manifests) {
         addError("scripts", `licenses:check:release must be exactly "${expectedReleaseLicenseCheckCommand}".`);
       }
 
+      const releaseManifestCheckCommand = manifest.scripts["manifests:check:release"];
+      const expectedReleaseManifestCheckCommand = `node ${releaseManifestCheckerPath}`;
+      if (
+        typeof releaseManifestCheckCommand === "string" &&
+        releaseManifestCheckCommand !== expectedReleaseManifestCheckCommand
+      ) {
+        addError("scripts", `manifests:check:release must be exactly "${expectedReleaseManifestCheckCommand}".`);
+      }
+
       const releasePreflightCommand = manifest.scripts["release:preflight:public"];
       if (
         typeof releasePreflightCommand === "string" &&
@@ -478,7 +523,7 @@ function checkPackageScripts(manifests) {
       }
 
       const releaseCommand = manifest.scripts["release:check:public"];
-      if (typeof releasePreflightCommand === "string" && releaseCommand !== expectedPublicReleaseCommand) {
+      if (typeof releaseCommand === "string" && releaseCommand !== expectedPublicReleaseCommand) {
         addError("scripts", `release:check:public must be exactly "${expectedPublicReleaseCommand}".`);
       } else if (typeof releaseCommand === "string" && !/\bpnpm\s+licenses:check:release\b/.test(releaseCommand)) {
         addError("scripts", "release:check:public must run pnpm licenses:check:release after creating the ZIPs.");
@@ -487,6 +532,37 @@ function checkPackageScripts(manifests) {
       const qualityCommand = manifest.scripts["quality:public"];
       if (typeof qualityCommand === "string" && !/\bpnpm\s+licenses:check:public\b/.test(qualityCommand)) {
         addError("scripts", "quality:public must run pnpm licenses:check:public before publication.");
+      }
+
+      const publicBuildCommand = manifest.scripts["build:public:extensions"];
+      if (typeof publicBuildCommand === "string" && publicBuildCommand !== expectedPublicBuildCommand) {
+        addError("scripts", `build:public:extensions must be exactly "${expectedPublicBuildCommand}".`);
+      }
+
+      const playwrightInstallCommand = manifest.scripts["playwright:install:public"];
+      if (
+        typeof playwrightInstallCommand === "string" &&
+        playwrightInstallCommand !== expectedPlaywrightInstallCommand
+      ) {
+        addError("scripts", `playwright:install:public must be exactly "${expectedPlaywrightInstallCommand}".`);
+      }
+
+      const playwrightVersion = manifest.devDependencies?.["@playwright/test"];
+      if (playwrightVersion !== expectedPlaywrightVersion) {
+        addError(
+          "metadata",
+          `@playwright/test must be pinned exactly to ${expectedPlaywrightVersion}; found ${JSON.stringify(playwrightVersion)}.`
+        );
+      }
+
+      const e2eBuiltCommand = manifest.scripts["test:e2e:public:built"];
+      if (typeof e2eBuiltCommand === "string" && e2eBuiltCommand !== expectedPublicE2eBuiltCommand) {
+        addError("scripts", `test:e2e:public:built must be exactly "${expectedPublicE2eBuiltCommand}".`);
+      }
+
+      const e2eCommand = manifest.scripts["test:e2e:public"];
+      if (typeof e2eCommand === "string" && e2eCommand !== expectedPublicE2eCommand) {
+        addError("scripts", `test:e2e:public must be exactly "${expectedPublicE2eCommand}".`);
       }
 
       if (isWorkspaceMode) {
@@ -1016,7 +1092,7 @@ function checkSensitivePublicFiles(files) {
 const files = repositoryFiles();
 checkExactExportFileAllowlist(files);
 checkPublicTemplateManifestDrift();
-checkPublicTemplateWorkflowDrift();
+checkRootTemplateMappingDrift();
 
 checkComponentAllowlist(files);
 checkLicenseBoundary();

@@ -24,11 +24,18 @@ import {
   type ThemeSelectorLabels
 } from "@browser-extensions/ui";
 import { ArrowLeft, ExternalLink, Globe2, Lightbulb, Link2, MoreVertical, Pencil, Plus, Trash2, X } from "lucide-react";
-import { type FormEvent, type ReactElement, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 
 import { PATHSWITCH_LANGUAGE_OPTIONS, t } from "../pathswitch/i18n";
-import { findRedirectCycle, getSourcePatternExamples, normalizeDestinationUrl } from "../pathswitch/matcher";
+import {
+  findRedirectCycle,
+  getRedirectPreview,
+  getSourcePatternExamples,
+  getSourcePatternFromUrl,
+  isValidSourcePattern,
+  normalizeDestinationUrl
+} from "../pathswitch/matcher";
 import {
   createRedirectRule,
   getDefaultPathSwitchSettings,
@@ -60,10 +67,12 @@ const EMPTY_DRAFT: RuleDraft = {
 
 export function PathSwitchApp(): ReactElement {
   const [settings, setSettings] = useState<PathSwitchSettings>(() => getDefaultPathSwitchSettings());
+  const [isReady, setIsReady] = useState(false);
   const [view, setView] = useState<View>("list");
   const [draft, setDraft] = useState<RuleDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
   const [showQuickTip, setShowQuickTip] = useState(false);
+  const sourcePrefillRequestRef = useRef(0);
   const { setTheme, theme } = useExtensionTheme({ storageKey: "pathswitch:theme" });
 
   const language = settings.language;
@@ -76,6 +85,7 @@ export function PathSwitchApp(): ReactElement {
       setSettings(storedSettings);
       setError(findRedirectCycle(storedSettings) ? t("validationCycle", storedSettings.language) : "");
       document.documentElement.lang = storedSettings.language;
+      setIsReady(true);
     });
 
     return () => {
@@ -109,6 +119,8 @@ export function PathSwitchApp(): ReactElement {
   }, [language]);
 
   function commitSettings(nextSettings: PathSwitchSettings): void {
+    if (!isReady) return;
+
     setSettings(nextSettings);
     void saveSettings(nextSettings).catch(() => undefined);
   }
@@ -129,12 +141,31 @@ export function PathSwitchApp(): ReactElement {
   }
 
   function openNewRule(): void {
+    if (!isReady) return;
+
+    const requestId = sourcePrefillRequestRef.current + 1;
+    sourcePrefillRequestRef.current = requestId;
     setDraft(EMPTY_DRAFT);
     setError("");
     setView("form");
+
+    void getActiveTabSourcePattern()
+      .then((sourcePattern) => {
+        if (!sourcePattern || sourcePrefillRequestRef.current !== requestId) return;
+        setDraft((currentDraft) =>
+          currentDraft.id || currentDraft.sourcePattern
+            ? currentDraft
+            : {
+                ...currentDraft,
+                sourcePattern
+              }
+        );
+      })
+      .catch(() => undefined);
   }
 
   function openEditRule(rule: RedirectRule): void {
+    sourcePrefillRequestRef.current += 1;
     setDraft({
       condition: rule.condition,
       destinationUrl: rule.destinationUrl,
@@ -148,6 +179,7 @@ export function PathSwitchApp(): ReactElement {
   }
 
   function closeForm(): void {
+    sourcePrefillRequestRef.current += 1;
     setDraft(EMPTY_DRAFT);
     setError("");
     setView("list");
@@ -192,7 +224,7 @@ export function PathSwitchApp(): ReactElement {
   function saveRule(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
 
-    if (!draft.sourcePattern.trim()) {
+    if (!isValidSourcePattern(draft.sourcePattern)) {
       setError(t("validationSource", language));
       return;
     }
@@ -263,28 +295,30 @@ export function PathSwitchApp(): ReactElement {
   }
 
   return (
-    <PopupShell className="content-start gap-2.5 pb-6">
+    <PopupShell aria-busy={!isReady} className="content-start gap-2.5 pb-6">
       <AppHeader
         actions={
-          <PreferencesMenu
-            aria-label="Menu"
-            childrenBefore={
-              <DropdownMenuSwitchItem
-                checked={settings.enabled}
-                label={settings.enabled ? t("active", language) : t("disabled", language)}
-                onCheckedChange={(enabled) => updateSettings({ enabled })}
-              />
-            }
-            language={language}
-            languageLabel={t("language", language)}
-            languageOptions={PATHSWITCH_LANGUAGE_OPTIONS}
-            panelClassName="w-52"
-            theme={theme}
-            themeLabel={t("theme", language)}
-            themeLabels={getThemeLabels(language)}
-            onChangeLanguage={(nextLanguage) => updateSettings({ language: nextLanguage })}
-            onChangeTheme={setTheme}
-          />
+          isReady ? (
+            <PreferencesMenu
+              aria-label="Menu"
+              childrenBefore={
+                <DropdownMenuSwitchItem
+                  checked={settings.enabled}
+                  label={settings.enabled ? t("active", language) : t("disabled", language)}
+                  onCheckedChange={(enabled) => updateSettings({ enabled })}
+                />
+              }
+              language={language}
+              languageLabel={t("language", language)}
+              languageOptions={PATHSWITCH_LANGUAGE_OPTIONS}
+              panelClassName="w-52"
+              theme={theme}
+              themeLabel={t("theme", language)}
+              themeLabels={getThemeLabels(language)}
+              onChangeLanguage={(nextLanguage) => updateSettings({ language: nextLanguage })}
+              onChangeTheme={setTheme}
+            />
+          ) : null
         }
         icon={<AppIcon src="/icons/icon-128.png" />}
         subtitle={t("appSubtitle", language)}
@@ -293,7 +327,7 @@ export function PathSwitchApp(): ReactElement {
 
       <Section
         actions={
-          <Button onClick={openNewRule} size="sm" type="button">
+          <Button disabled={!isReady} onClick={openNewRule} size="sm" type="button">
             <Plus aria-hidden size={16} />
             {t("addRule", language)}
           </Button>
@@ -333,7 +367,7 @@ export function PathSwitchApp(): ReactElement {
         )}
       </Section>
 
-      {showQuickTip ? <QuickTipCard language={language} onDismiss={dismissQuickTip} /> : null}
+      {isReady && showQuickTip ? <QuickTipCard language={language} onDismiss={dismissQuickTip} /> : null}
 
       <AppFooter
         privacy={t("privacyLocal", language)}
@@ -359,6 +393,10 @@ function RuleForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }): ReactElement {
   const sourceExamples = useMemo(() => getSourcePatternExamples(draft.sourcePattern), [draft.sourcePattern]);
+  const redirectPreview = useMemo(
+    () => getRedirectPreview(draft.sourcePattern, draft.destinationUrl),
+    [draft.destinationUrl, draft.sourcePattern]
+  );
   const title = draft.id ? t("editRule", language) : t("newRule", language);
 
   function updateDraft(patch: Partial<RuleDraft>): void {
@@ -434,6 +472,19 @@ function RuleForm({
           <p className="text-xs font-medium leading-snug text-[var(--extension-muted)]">
             {t("destinationHint", language)}
           </p>
+          {redirectPreview ? (
+            <div className="grid gap-1 rounded-[7px] bg-[var(--extension-surface-subtle)] px-2.5 py-2">
+              <span className="text-[11px] font-bold uppercase tracking-normal text-[var(--extension-muted)]">
+                {t("redirectPreviewTitle", language)}
+              </span>
+              <code className="break-all text-xs font-semibold text-[var(--extension-muted-strong)]">
+                {t("redirectPreview", language, {
+                  destination: redirectPreview.destinationUrl,
+                  source: redirectPreview.sourcePattern
+                })}
+              </code>
+            </div>
+          ) : null}
         </Section>
 
         <Section title={`${t("condition", language)} (${t("optional", language)})`}>
@@ -498,7 +549,7 @@ function RuleItem({
       <button className="min-w-0 text-left" onClick={onEdit} type="button">
         <strong className="block truncate text-sm text-[var(--extension-text)]">{rule.sourcePattern}</strong>
         <span className="mt-0.5 block truncate text-xs font-medium text-[var(--extension-muted)]">
-          {formatDestination(rule.destinationUrl)}
+          → {formatDestination(rule.destinationUrl)}
         </span>
       </button>
       <CompactSwitch checked={rule.enabled} label={rule.sourcePattern} onChange={onToggle} />
@@ -562,10 +613,15 @@ function QuickTipCard({ language, onDismiss }: { language: PathSwitchLanguage; o
 
 function formatDestination(destinationUrl: string): string {
   try {
-    return new URL(destinationUrl).hostname;
+    return new URL(destinationUrl).href;
   } catch (_error) {
     return destinationUrl;
   }
+}
+
+async function getActiveTabSourcePattern(): Promise<string> {
+  const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+  return getSourcePatternFromUrl(activeTab?.url ?? "");
 }
 
 function getThemeLabels(language: PathSwitchLanguage): ThemeSelectorLabels {

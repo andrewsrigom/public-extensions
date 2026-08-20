@@ -43,10 +43,14 @@ const PRODUCT_LANGUAGE_OPTIONS = LANGUAGE_OPTIONS;
 
 export function ProductFilterOptions(): ReactElement {
   const [settings, setSettings] = useState<ProductFilterSettings>(() => normalizeSettings());
+  const [isReady, setIsReady] = useState(false);
+  const [productIdsText, setProductIdsText] = useState("");
   const [termsText, setTermsText] = useState("");
   const [status, setStatus] = useState<OptionsStatus>({ message: "", tone: "neutral" });
   const importFileRef = useRef<HTMLInputElement | null>(null);
+  const draftRevisionRef = useRef(0);
   const dirtyPreferencesRef = useRef<Set<PreferenceKey>>(new Set());
+  const loadedProductIdsRef = useRef<string[]>([]);
   const loadedTermsRef = useRef<string[]>([]);
   const { setTheme, theme } = useExtensionTheme({ storageKey: "product-filter:theme" });
 
@@ -58,10 +62,13 @@ export function ProductFilterOptions(): ReactElement {
     void loadSettings().then((loadedSettings) => {
       if (!mounted) return;
       const normalizedSettings = normalizeSettings(loadedSettings);
+      loadedProductIdsRef.current = normalizedSettings.blockedProductIds;
       loadedTermsRef.current = normalizedSettings.blockedTerms;
       setSettings(normalizedSettings);
+      setProductIdsText(normalizedSettings.blockedProductIds.join("\n"));
       setTermsText(normalizedSettings.blockedTerms.join("\n"));
       setStatus({ message: t("rulesLoaded", normalizedSettings.language), tone: "success" });
+      setIsReady(true);
     });
 
     return () => {
@@ -75,6 +82,9 @@ export function ProductFilterOptions(): ReactElement {
   }, [settings.language]);
 
   function updateDraft(patch: Partial<ProductFilterSettings>): void {
+    if (!isReady) return;
+
+    draftRevisionRef.current += 1;
     for (const key of ["enabled", "language", "mode"] as const) {
       if (key in patch) dirtyPreferencesRef.current.add(key);
     }
@@ -90,28 +100,42 @@ export function ProductFilterOptions(): ReactElement {
   function getDraftSettings(): ProductFilterSettings {
     return normalizeSettings({
       ...settings,
+      blockedProductIds: parseTextarea(productIdsText),
       blockedTerms: parseTextarea(termsText)
     });
   }
 
   async function persistDraft(messageKey: "rulesSaved" | "jsonImported"): Promise<ProductFilterSettings> {
+    if (!isReady) return settings;
+
+    const persistedRevision = draftRevisionRef.current;
     const draftSettings = getDraftSettings();
+    const productIdChanges = getRuleChanges(loadedProductIdsRef.current, draftSettings.blockedProductIds);
     const termChanges = getRuleChanges(loadedTermsRef.current, draftSettings.blockedTerms);
     const nextSettings = await requestSettingsMutation({
+      addedProductIds: productIdChanges.added,
       addedTerms: termChanges.added,
       kind: "save-options-draft",
       preferences: getDirtyPreferences(draftSettings, dirtyPreferencesRef.current),
+      removedProductIds: productIdChanges.removed,
       removedTerms: termChanges.removed
     });
-    dirtyPreferencesRef.current.clear();
+    loadedProductIdsRef.current = nextSettings.blockedProductIds;
     loadedTermsRef.current = nextSettings.blockedTerms;
-    setSettings(nextSettings);
-    setTermsText(nextSettings.blockedTerms.join("\n"));
+    if (draftRevisionRef.current === persistedRevision) {
+      dirtyPreferencesRef.current.clear();
+      setSettings(nextSettings);
+      setProductIdsText(nextSettings.blockedProductIds.join("\n"));
+      setTermsText(nextSettings.blockedTerms.join("\n"));
+    }
     setStatus({ message: t(messageKey, nextSettings.language), tone: "success" });
     return nextSettings;
   }
 
   function changeLanguage(language: ProductLanguage): void {
+    if (!isReady) return;
+
+    draftRevisionRef.current += 1;
     const nextSettings = normalizeSettings({
       ...getDraftSettings(),
       language
@@ -127,18 +151,24 @@ export function ProductFilterOptions(): ReactElement {
   }
 
   async function resetRules(): Promise<void> {
+    if (!isReady) return;
+
     const nextSettings = await requestSettingsMutation({
       kind: "reset-rules",
       preferences: getDirtyPreferences(getDraftSettings(), dirtyPreferencesRef.current)
     });
     dirtyPreferencesRef.current.clear();
+    loadedProductIdsRef.current = nextSettings.blockedProductIds;
     loadedTermsRef.current = nextSettings.blockedTerms;
     setSettings(nextSettings);
+    setProductIdsText("");
     setTermsText("");
     setStatus({ message: t("rulesSaved", nextSettings.language), tone: "success" });
   }
 
   function exportSettings(): void {
+    if (!isReady) return;
+
     const draftSettings = getDraftSettings();
     const payload = JSON.stringify(draftSettings, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
@@ -151,6 +181,8 @@ export function ProductFilterOptions(): ReactElement {
   }
 
   async function importSettings(file: File): Promise<void> {
+    if (!isReady) return;
+
     if (!isSettingsImportFileSizeAllowed(file.size)) {
       setStatus({ message: t("importFileTooLarge", settings.language), tone: "danger" });
       return;
@@ -161,8 +193,10 @@ export function ProductFilterOptions(): ReactElement {
       const importedSettings = normalizeSettings(JSON.parse(raw) as Partial<ProductFilterSettings>);
       const nextSettings = await requestSettingsMutation({ kind: "replace-all", settings: importedSettings });
       dirtyPreferencesRef.current.clear();
+      loadedProductIdsRef.current = nextSettings.blockedProductIds;
       loadedTermsRef.current = nextSettings.blockedTerms;
       setSettings(nextSettings);
+      setProductIdsText(nextSettings.blockedProductIds.join("\n"));
       setTermsText(nextSettings.blockedTerms.join("\n"));
       setStatus({ message: t("jsonImported", nextSettings.language), tone: "success" });
     } catch (_error) {
@@ -171,20 +205,22 @@ export function ProductFilterOptions(): ReactElement {
   }
 
   return (
-    <PageShell width="md">
+    <PageShell aria-busy={!isReady} width="md">
       <AppHeader
         actions={
-          <PreferencesMenu
-            aria-label={t("languageLabel", settings.language)}
-            language={activeLanguage}
-            languageLabel={t("languageLabel", settings.language)}
-            languageOptions={PRODUCT_LANGUAGE_OPTIONS}
-            theme={theme}
-            themeLabel={t("theme", settings.language)}
-            themeLabels={getThemeLabels(settings.language)}
-            onChangeLanguage={changeLanguage}
-            onChangeTheme={setTheme}
-          />
+          isReady ? (
+            <PreferencesMenu
+              aria-label={t("languageLabel", settings.language)}
+              language={activeLanguage}
+              languageLabel={t("languageLabel", settings.language)}
+              languageOptions={PRODUCT_LANGUAGE_OPTIONS}
+              theme={theme}
+              themeLabel={t("theme", settings.language)}
+              themeLabels={getThemeLabels(settings.language)}
+              onChangeLanguage={changeLanguage}
+              onChangeTheme={setTheme}
+            />
+          ) : null
         }
         icon={<AppIcon src="/icons/icon-128.png" />}
         subtitle={t("optionsSubtitle", settings.language)}
@@ -197,6 +233,7 @@ export function ProductFilterOptions(): ReactElement {
         <SettingToggle
           checked={settings.enabled}
           description={t("toggleHint", settings.language)}
+          disabled={!isReady}
           label={t("toggleLabel", settings.language)}
           onCheckedChange={(enabled) => {
             updateDraft({ enabled });
@@ -204,6 +241,7 @@ export function ProductFilterOptions(): ReactElement {
         />
         <div className="border-t border-[var(--extension-border)] p-3">
           <SelectField<ProductFilterSettings["mode"]>
+            disabled={!isReady}
             label={t("modeLabel", settings.language)}
             onValueChange={(mode) => {
               updateDraft({ mode });
@@ -223,7 +261,10 @@ export function ProductFilterOptions(): ReactElement {
           <Field label={t("globalTerms", settings.language)}>
             <Textarea
               className="min-h-[260px]"
+              disabled={!isReady}
               onChange={(event) => {
+                if (!isReady) return;
+                draftRevisionRef.current += 1;
                 setTermsText(event.target.value);
               }}
               placeholder={t("globalPlaceholder", settings.language)}
@@ -237,8 +278,31 @@ export function ProductFilterOptions(): ReactElement {
         </Card>
       </Section>
 
+      <Section title={t("productIds", settings.language)}>
+        <Card className="p-3">
+          <Field label={t("productIds", settings.language)}>
+            <Textarea
+              className="min-h-[160px]"
+              disabled={!isReady}
+              onChange={(event) => {
+                if (!isReady) return;
+                draftRevisionRef.current += 1;
+                setProductIdsText(event.target.value);
+              }}
+              placeholder={t("productIdsPlaceholder", settings.language)}
+              spellCheck={false}
+              value={productIdsText}
+            />
+          </Field>
+          <p className="mt-2 text-xs font-medium leading-snug text-[var(--extension-muted)]">
+            {t("productIdsHint", settings.language)}
+          </p>
+        </Card>
+      </Section>
+
       <Card className="flex flex-wrap gap-2 p-3 max-[720px]:grid">
         <Button
+          disabled={!isReady}
           onClick={() => {
             void persistDraft("rulesSaved");
           }}
@@ -247,11 +311,12 @@ export function ProductFilterOptions(): ReactElement {
           <Save aria-hidden size={16} strokeWidth={2.35} />
           {t("saveRules", settings.language)}
         </Button>
-        <Button onClick={exportSettings} type="button" variant="secondary">
+        <Button disabled={!isReady} onClick={exportSettings} type="button" variant="secondary">
           <Download aria-hidden size={16} strokeWidth={2.35} />
           {t("exportJson", settings.language)}
         </Button>
         <Button
+          disabled={!isReady}
           onClick={() => {
             importFileRef.current?.click();
           }}
@@ -266,6 +331,7 @@ export function ProductFilterOptions(): ReactElement {
           cancelLabel={t("cancel", settings.language)}
           confirmLabel={t("clearRules", settings.language)}
           description={t("clearRulesConfirmDescription", settings.language)}
+          disabled={!isReady}
           onConfirm={resetRules}
           onConfirmError={(error) => {
             setStatus({
@@ -282,6 +348,7 @@ export function ProductFilterOptions(): ReactElement {
         </ConfirmAction>
         <input
           accept="application/json,.json"
+          disabled={!isReady}
           hidden
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];

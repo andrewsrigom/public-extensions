@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   findRedirectCycle,
+  getRedirectPreview,
   getRedirectForUrl,
+  getSourcePatternFromUrl,
   getSourcePatternExamples,
+  isValidSourcePattern,
   matchesSourcePattern,
   normalizeDestinationUrl
 } from "./matcher";
@@ -38,6 +41,39 @@ describe("pathswitch matcher", () => {
     expect(normalizeDestinationUrl("ftp://example.com")).toBeNull();
     expect(normalizeDestinationUrl(deceptiveAuthority)).toBeNull();
     expect(normalizeDestinationUrl(credentialedUrl)).toBeNull();
+  });
+
+  it("derives a safe source pattern without leaking query parameters or losing origin details", () => {
+    expect(getSourcePatternFromUrl("https://WWW.Example.com:8443/products/42?token=secret#details")).toBe(
+      "https://www.example.com:8443/products/42*"
+    );
+    expect(getSourcePatternFromUrl("http://example.com/plain")).toBe("http://example.com/plain");
+    const urlWithCredentials = new URL("https://example.com/private");
+    urlWithCredentials.username = "synthetic-user";
+    urlWithCredentials.password = "synthetic-password";
+    expect(getSourcePatternFromUrl(urlWithCredentials.href)).toBe("");
+    expect(getSourcePatternFromUrl("chrome://extensions/")).toBe("");
+    expect(getSourcePatternFromUrl("not a URL")).toBe("");
+  });
+
+  it("builds a deterministic fixed-destination preview", () => {
+    expect(getRedirectPreview("  example.com/products/*  ", "preferred.example/path")).toEqual({
+      destinationUrl: "https://preferred.example/path",
+      sourcePattern: "example.com/products/*"
+    });
+    expect(getRedirectPreview("example.com/*", "ftp://preferred.example/")).toBeNull();
+    expect(getRedirectPreview("https://", "preferred.example/")).toBeNull();
+  });
+
+  it("validates source patterns with the same matching semantics used at runtime", () => {
+    expect(isValidSourcePattern("example.com/products/*")).toBe(true);
+    expect(isValidSourcePattern("https://example.com:8443/products/*")).toBe(true);
+    expect(isValidSourcePattern("https://")).toBe(false);
+    expect(isValidSourcePattern("example.com:8443/products/*")).toBe(false);
+    const patternWithCredentials = new URL("https://example.com/pathswitch-example");
+    patternWithCredentials.username = "synthetic-user";
+    patternWithCredentials.password = "synthetic-password";
+    expect(isValidSourcePattern(patternWithCredentials.href.replace("pathswitch-example", "*"))).toBe(false);
   });
 
   it("returns the first enabled matching redirect", () => {

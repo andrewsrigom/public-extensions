@@ -173,7 +173,25 @@ h1 {
 }
 
 .quick-notes-new-button {
+  width: auto;
+  height: 44px;
   min-height: 44px;
+  padding: 0 12px;
+  gap: 6px;
+  border-color: var(--extension-primary);
+  color: var(--extension-primary-contrast);
+  background: var(--extension-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.quick-notes-new-button:hover,
+.quick-notes-new-button[data-state="open"] {
+  background: var(--extension-primary-hover);
+}
+
+.quick-notes-new-menu-panel {
+  min-width: 230px;
 }
 
 .app--page .quick-notes-new-button {

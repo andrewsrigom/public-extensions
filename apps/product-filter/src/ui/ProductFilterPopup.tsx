@@ -14,7 +14,7 @@ import {
   type ThemeSelectorLabels,
   type LanguageSelectorOption
 } from "@browser-extensions/ui";
-import { Plus, X } from "lucide-react";
+import { Plus, Settings2, X } from "lucide-react";
 import type { FormEvent, ReactElement } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { browser } from "wxt/browser";
@@ -228,6 +228,18 @@ export function ProductFilterPopup(): ReactElement {
           value={settings.mode}
         />
       </Card>
+
+      <Button
+        className="w-full"
+        onClick={() => {
+          void browser.runtime.openOptionsPage().catch(() => undefined);
+        }}
+        type="button"
+        variant="secondary"
+      >
+        <Settings2 aria-hidden="true" size={16} strokeWidth={2.35} />
+        {t("manageRules", settings.language)}
+      </Button>
 
       <AppFooter
         privacy={t("privacyLocal", settings.language)}

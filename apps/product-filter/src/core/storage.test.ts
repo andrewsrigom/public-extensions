@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applySettingsMutation,
+  isSettingsMutationMessage,
   isSettingsImportFileSizeAllowed,
   loadSettings,
   MAX_SETTINGS_IMPORT_FILE_BYTES,
+  SETTINGS_MUTATION_MESSAGE,
   saveSettings
 } from "./storage";
 import { RULES_STORAGE_KEY, SETTINGS_STORAGE_KEY } from "../shared/defaults";
@@ -54,6 +56,30 @@ describe("product filter storage", () => {
     expect(isSettingsImportFileSizeAllowed(MAX_SETTINGS_IMPORT_FILE_BYTES)).toBe(true);
     expect(isSettingsImportFileSizeAllowed(MAX_SETTINGS_IMPORT_FILE_BYTES + 1)).toBe(false);
     expect(isSettingsImportFileSizeAllowed(Number.NaN)).toBe(false);
+  });
+
+  it("accepts complete options mutations and rejects drafts missing product ID changes", () => {
+    const mutation = {
+      addedProductIds: ["NEW-ID"],
+      addedTerms: [],
+      kind: "save-options-draft",
+      preferences: {},
+      removedProductIds: ["OLD-ID"],
+      removedTerms: []
+    };
+
+    expect(isSettingsMutationMessage({ mutation, type: SETTINGS_MUTATION_MESSAGE })).toBe(true);
+    expect(
+      isSettingsMutationMessage({
+        mutation: {
+          addedTerms: [],
+          kind: "save-options-draft",
+          preferences: {},
+          removedTerms: []
+        },
+        type: SETTINGS_MUTATION_MESSAGE
+      })
+    ).toBe(false);
   });
 
   it("loads preferences from sync and quota-sensitive rules from local storage", async () => {
@@ -188,7 +214,7 @@ describe("product filter storage", () => {
       mode: "hide" as const
     };
     let rules = {
-      blockedProductIds: [] as string[],
+      blockedProductIds: ["EXISTING-ID", "CONCURRENT-ID"],
       blockedTerms: ["existing", "concurrent"],
       blockedTermsByPlatform: {} as Record<string, string[]>
     };
@@ -207,12 +233,15 @@ describe("product filter storage", () => {
     });
 
     await applySettingsMutation({
+      addedProductIds: ["NEW-ID"],
       addedTerms: ["draft addition"],
       kind: "save-options-draft",
       preferences: {},
+      removedProductIds: ["EXISTING-ID"],
       removedTerms: ["existing"]
     });
 
     expect(rules.blockedTerms).toEqual(["concurrent", "draft addition"]);
+    expect(rules.blockedProductIds).toEqual(["CONCURRENT-ID", "NEW-ID"]);
   });
 });

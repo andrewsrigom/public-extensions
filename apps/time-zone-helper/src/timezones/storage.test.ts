@@ -157,6 +157,22 @@ describe("time zone helper storage", () => {
     });
   });
 
+  it("fails closed without migrating or overwriting legacy settings when extension storage cannot be read", async () => {
+    const legacySettings = JSON.stringify({
+      convertDate: "2026-07-09",
+      convertTime: "14:15",
+      convertTimeZone: "Europe/London",
+      language: "es",
+      monitors: []
+    });
+    localStorage.setItem(SETTINGS_KEY, legacySettings);
+    browserStorageMock.get.mockRejectedValueOnce(new Error("temporary read failure"));
+
+    await expect(loadSettings("America/Sao_Paulo")).rejects.toThrow("Could not read time-zone-helper settings");
+    expect(browserStorageMock.set).not.toHaveBeenCalled();
+    expect(localStorage.getItem(SETTINGS_KEY)).toBe(legacySettings);
+  });
+
   it("imports legacy localStorage settings when extension storage is empty", async () => {
     localStorage.setItem(
       SETTINGS_KEY,

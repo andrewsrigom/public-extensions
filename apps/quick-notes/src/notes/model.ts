@@ -1,6 +1,6 @@
 export type NoteScope = "global" | "site";
 
-export type NoteScopeFilter = "global" | "site";
+export type NoteScopeFilter = "all" | "site";
 
 export type NoteVisibilityFilter = "active" | "archived";
 
@@ -32,7 +32,7 @@ export interface QuickNote {
 
 export interface CreateNoteInput {
   content?: string;
-  scope?: NoteScope;
+  scope: NoteScope;
   context: PageContext | null;
   now?: Date;
 }
@@ -47,8 +47,7 @@ export interface NoteFilterInput {
 export function createQuickNote(input: CreateNoteInput): QuickNote {
   const now = (input.now ?? new Date()).toISOString();
   const context = input.context;
-  const requestedScope = input.scope ?? (context?.siteKey ? "site" : "global");
-  const scope = requestedScope === "site" && context?.siteKey ? "site" : "global";
+  const scope = input.scope === "site" && context?.siteKey ? "site" : "global";
   const blocks = legacyContentToBlocks(input.content ?? "");
 
   return {
@@ -226,7 +225,7 @@ export function isBlankNoteContent(content: string): boolean {
 }
 
 function matchesScope(note: QuickNote, scope: NoteScopeFilter, context: PageContext | null): boolean {
-  if (scope === "global") return true;
+  if (scope === "all") return true;
   return isCurrentSiteNote(note, context);
 }
 
