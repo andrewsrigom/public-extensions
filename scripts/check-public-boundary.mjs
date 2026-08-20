@@ -40,6 +40,7 @@ const publicLegalEmailPaths = new Set([
   ...licenseOverridePaths
 ]);
 const requiredRepositoryFiles = [
+  "AGENTS.md",
   "SECURITY.md",
   "CONTRIBUTING.md",
   "CODE_OF_CONDUCT.md",
@@ -64,8 +65,16 @@ const publicRootScripts = [
   "licenses:check:public",
   "lint:public",
   "quality:public",
+  "release:preflight:public",
   "release:check:public"
 ];
+const expectedAppReleaseCommand = "pnpm typecheck && pnpm test:run && pnpm zip";
+const expectedPublicReleasePreflightCommand =
+  "pnpm check:public-boundary && pnpm licenses:check:public && pnpm format:check:public && pnpm lint:public && pnpm ui:quality";
+const publicAppReleaseCommand = `pnpm ${publicApps
+  .map((app) => `--filter ${app}`)
+  .join(" ")} --recursive --workspace-concurrency=4 release:check`;
+const expectedPublicReleaseCommand = `pnpm release:preflight:public && ${publicAppReleaseCommand} && pnpm licenses:check:release`;
 const workspaceQualityAllScripts = ["check:public-boundary", "test:public-export", "licenses:check:public"];
 const workspaceMetadataFiles = ["pnpm-workspace.yaml", "pnpm-lock.yaml"];
 const privateProductPattern =
@@ -94,6 +103,7 @@ const expectedExportFiles = new Set([
   ".gitignore",
   ".nvmrc",
   ".prettierignore",
+  "AGENTS.md",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
   "LICENSE",
@@ -245,7 +255,39 @@ function checkPublicTemplateManifestDrift() {
       addError("metadata", `docs/public/package.json field ${field} has drifted from the tested root package.json.`);
     }
   }
+
+  const templateScripts = templateManifest.scripts ?? {};
+  const rootPublicScripts = Object.fromEntries(
+    Object.keys(templateScripts).map((name) => [name, rootManifest.scripts?.[name]])
+  );
+  if (JSON.stringify(canonicalJson(rootPublicScripts)) !== JSON.stringify(canonicalJson(templateScripts))) {
+    addError("metadata", "docs/public/package.json public scripts have drifted from the tested root package.json.");
+  }
 }
+
+function checkPublicTemplateWorkflowDrift() {
+  if (isWorkspaceMode) {
+    return;
+  }
+
+  const workflowPath = ".github/workflows/ci.yml";
+  const templatePath = "docs/public/ci.yml";
+
+  try {
+    const workflow = readFileSync(absolutePath(workflowPath));
+    const template = readFileSync(absolutePath(templatePath));
+    if (!workflow.equals(template)) {
+      addError(
+        "ci",
+        `${templatePath} has drifted from ${workflowPath}; publication would replace the tested workflow.`
+      );
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    addError("ci", `The public workflow template could not be compared: ${detail}`);
+  }
+}
+
 function checkRequiredFile(relativePath, category = "documentation") {
   const fullPath = absolutePath(relativePath);
   if (!existsSync(fullPath)) {
@@ -427,8 +469,18 @@ function checkPackageScripts(manifests) {
         addError("scripts", `licenses:check:release must be exactly "${expectedReleaseLicenseCheckCommand}".`);
       }
 
+      const releasePreflightCommand = manifest.scripts["release:preflight:public"];
+      if (
+        typeof releasePreflightCommand === "string" &&
+        releasePreflightCommand !== expectedPublicReleasePreflightCommand
+      ) {
+        addError("scripts", `release:preflight:public must be exactly "${expectedPublicReleasePreflightCommand}".`);
+      }
+
       const releaseCommand = manifest.scripts["release:check:public"];
-      if (typeof releaseCommand === "string" && !/\bpnpm\s+licenses:check:release\b/.test(releaseCommand)) {
+      if (typeof releasePreflightCommand === "string" && releaseCommand !== expectedPublicReleaseCommand) {
+        addError("scripts", `release:check:public must be exactly "${expectedPublicReleaseCommand}".`);
+      } else if (typeof releaseCommand === "string" && !/\bpnpm\s+licenses:check:release\b/.test(releaseCommand)) {
         addError("scripts", "release:check:public must run pnpm licenses:check:release after creating the ZIPs.");
       }
 
@@ -454,6 +506,16 @@ function checkPackageScripts(manifests) {
         scripts = publicRootScripts
           .filter((name) => typeof manifest.scripts[name] === "string")
           .map((name) => [name, manifest.scripts[name]]);
+      }
+    }
+
+    if (publicApps.some((app) => manifestPath === `apps/${app}/package.json`)) {
+      const releaseCommand = manifest.scripts["release:check"];
+      if (releaseCommand !== expectedAppReleaseCommand) {
+        addError(
+          "scripts",
+          `${manifestPath} release:check must be exactly "${expectedAppReleaseCommand}" so CI runs each test, typecheck, and ZIP build once.`
+        );
       }
     }
 
@@ -538,6 +600,10 @@ function checkWorkflowSecurity() {
   }
 
   const requiredPatterns = [
+    ["pull request trigger", /^ {2}pull_request:\s*$/m],
+    ["manual trigger", /^ {2}workflow_dispatch:\s*$/m],
+    ["required check name", /^\s{4}name:\s*Validate public workspace\s*$/m],
+    ["concurrent run cancellation", /^\s+cancel-in-progress:\s*true\s*$/m],
     ["read-only contents permission", /^permissions:\s*\n\s+contents:\s+read\s*$/m],
     ["checkout credential isolation", /persist-credentials:\s*false/],
     ["frozen lockfile install", /pnpm install --frozen-lockfile/],
@@ -950,6 +1016,7 @@ function checkSensitivePublicFiles(files) {
 const files = repositoryFiles();
 checkExactExportFileAllowlist(files);
 checkPublicTemplateManifestDrift();
+checkPublicTemplateWorkflowDrift();
 
 checkComponentAllowlist(files);
 checkLicenseBoundary();

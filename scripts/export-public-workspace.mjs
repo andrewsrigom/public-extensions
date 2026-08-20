@@ -51,6 +51,7 @@ const preservedFiles = [
   ".editorconfig",
   ".gitattributes",
   ".nvmrc",
+  "AGENTS.md",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
   "SECURITY.md",

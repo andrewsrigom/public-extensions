@@ -8,7 +8,7 @@
     "clean": "wxt clean",
     "dev": "wxt",
     "quality": "pnpm typecheck && pnpm test:run && pnpm build",
-    "release:check": "pnpm quality && pnpm zip",
+    "release:check": "pnpm typecheck && pnpm test:run && pnpm zip",
     "release:assets:check": "node scripts/check-release-assets.mjs",
     "test": "vitest",
     "test:run": "vitest run && node --test scripts/check-release-assets.test.mjs",

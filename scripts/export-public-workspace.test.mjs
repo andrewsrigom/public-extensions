@@ -21,6 +21,12 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exporterPath = join(repositoryRoot, "scripts/export-public-workspace.mjs");
 const temporaryRoot = mkdtempSync(join(tmpdir(), "browser-extensions-public-export-"));
 const publicApps = ["watched-filter", "product-filter", "quick-notes", "time-zone-helper", "site-reset", "pathswitch"];
+const expectedAppReleaseCommand = "pnpm typecheck && pnpm test:run && pnpm zip";
+const expectedReleasePreflightCommand =
+  "pnpm check:public-boundary && pnpm licenses:check:public && pnpm format:check:public && pnpm lint:public && pnpm ui:quality";
+const expectedReleaseCommand = `pnpm release:preflight:public && pnpm ${publicApps
+  .map((app) => `--filter ${app}`)
+  .join(" ")} --recursive --workspace-concurrency=4 release:check && pnpm licenses:check:release`;
 
 after(() => {
   rmSync(temporaryRoot, { force: true, recursive: true });
@@ -74,6 +80,30 @@ packages:
     "utf8"
   );
 }
+
+test("the checked-in CI contract avoids duplicate release work", () => {
+  const rootPackage = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
+  const packageTemplate = JSON.parse(readFileSync(join(repositoryRoot, "docs/public/package.json"), "utf8"));
+  assert.equal(rootPackage.scripts["release:preflight:public"], expectedReleasePreflightCommand);
+  assert.equal(rootPackage.scripts["release:check:public"], expectedReleaseCommand);
+  assert.equal(packageTemplate.scripts["release:preflight:public"], expectedReleasePreflightCommand);
+  assert.equal(packageTemplate.scripts["release:check:public"], expectedReleaseCommand);
+
+  for (const app of publicApps) {
+    const appPackage = JSON.parse(readFileSync(join(repositoryRoot, "apps", app, "package.json"), "utf8"));
+    assert.equal(appPackage.scripts["release:check"], expectedAppReleaseCommand, app);
+  }
+
+  const workflow = readFileSync(join(repositoryRoot, ".github/workflows/ci.yml"), "utf8");
+  const workflowTemplate = readFileSync(join(repositoryRoot, "docs/public/ci.yml"), "utf8");
+  assert.equal(workflowTemplate, workflow);
+  assert.match(workflow, /^ {2}pull_request:\s*$/m);
+  assert.match(workflow, /^ {2}workflow_dispatch:\s*$/m);
+  assert.match(workflow, /^\s{4}name:\s*Validate public workspace\s*$/m);
+  assert.match(workflow, /^\s+cancel-in-progress:\s*true\s*$/m);
+  assert.match(workflow, /^\s+timeout-minutes:\s*15\s*$/m);
+  assert.doesNotMatch(workflow, /^ {2}push:\s*$/m);
+});
 
 test("requires one explicit destination", () => {
   assertRefused([], /explicit destination is required/i);
@@ -142,6 +172,7 @@ test("offline mode copies exactly the declared public workspace surface", () => 
     ".nvmrc",
     ".prettierignore",
     ".public-export-incomplete",
+    "AGENTS.md",
     "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "LICENSE",
@@ -159,7 +190,10 @@ test("offline mode copies exactly the declared public workspace surface", () => 
 
   assert.equal(existsSync(join(destination, ".public-export-incomplete")), true);
   assert.equal(existsSync(join(destination, ".git")), false);
-  assert.equal(existsSync(join(destination, "AGENTS.md")), false);
+  assert.equal(
+    readFileSync(join(destination, "AGENTS.md"), "utf8"),
+    readFileSync(join(repositoryRoot, "AGENTS.md"), "utf8")
+  );
   assert.equal(existsSync(join(destination, "roadmap.md")), false);
   assert.equal(existsSync(join(destination, "pnpm-lock.yaml")), false);
   assert.equal(existsSync(join(destination, "apps/watched-filter/node_modules")), false);
@@ -213,8 +247,8 @@ test("offline mode copies exactly the declared public workspace surface", () => 
 
   const publicWorkflow = readFileSync(join(destination, ".github/workflows/ci.yml"), "utf8");
   assert.match(publicWorkflow, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/);
-  assert.match(publicWorkflow, /pnpm\/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996/);
-  assert.match(publicWorkflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
+  assert.match(publicWorkflow, /pnpm\/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86/);
+  assert.match(publicWorkflow, /actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020/);
   assert.match(publicWorkflow, /pnpm audit --audit-level high/);
   assert.match(publicWorkflow, /pnpm release:check:public/);
 
@@ -372,6 +406,45 @@ test("the export checker detects public template toolchain drift", () => {
   assert.match(combinedOutput(boundaryCheck), /devDependencies has drifted/i);
 });
 
+test("the export checker detects public workflow template drift", () => {
+  const destination = join(temporaryRoot, "checker-workflow-template-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const templatePath = join(destination, "docs/public/ci.yml");
+  const template = readFileSync(templatePath, "utf8");
+  writeFileSync(templatePath, template.replace("timeout-minutes: 15", "timeout-minutes: 30"), "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /workflow template.*drift|drifted.*workflow/i);
+});
+
+test("the export checker detects public script template drift", () => {
+  const destination = join(temporaryRoot, "checker-script-template-drift");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const templatePath = join(destination, "docs/public/package.json");
+  const templatePackage = JSON.parse(readFileSync(templatePath, "utf8"));
+  templatePackage.scripts["release:check:public"] = "pnpm quality:public";
+  writeFileSync(templatePath, `${JSON.stringify(templatePackage, null, 2)}\n`, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /public scripts have drifted/i);
+});
+
 test("the export checker requires both public license-check scripts", () => {
   const destination = join(temporaryRoot, "checker-license-script");
   const exportResult = runExporter([destination, "--skip-install"]);
@@ -506,4 +579,45 @@ test("the export checker keeps Git-backed exporter tests in CI", () => {
 
   assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
   assert.match(combinedOutput(boundaryCheck), /missing public exporter test/i);
+});
+
+test("the export checker rejects duplicate app release work", () => {
+  const destination = join(temporaryRoot, "checker-duplicate-release-work");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const packagePath = join(destination, "apps/watched-filter/package.json");
+  const appPackage = JSON.parse(readFileSync(packagePath, "utf8"));
+  appPackage.scripts["release:check"] = "pnpm quality && pnpm zip";
+  writeFileSync(packagePath, `${JSON.stringify(appPackage, null, 2)}\n`, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /release:check must be exactly.*typecheck.*test:run.*zip/i);
+});
+
+test("the export checker preserves the required CI check name", () => {
+  const destination = join(temporaryRoot, "checker-required-check-name");
+  const exportResult = runExporter([destination, "--skip-install"]);
+  assert.equal(exportResult.status, 0, combinedOutput(exportResult));
+
+  const workflowPath = join(destination, ".github/workflows/ci.yml");
+  const workflow = readFileSync(workflowPath, "utf8");
+  const renamedWorkflow = workflow.replace("name: Validate public workspace", "name: Validate release");
+  assert.notEqual(renamedWorkflow, workflow);
+  writeFileSync(workflowPath, renamedWorkflow, "utf8");
+
+  const boundaryCheck = spawnSync(
+    process.execPath,
+    [join(destination, "scripts/check-public-boundary.mjs"), "--export"],
+    { cwd: destination, encoding: "utf8" }
+  );
+
+  assert.notEqual(boundaryCheck.status, 0, combinedOutput(boundaryCheck));
+  assert.match(combinedOutput(boundaryCheck), /missing required check name/i);
 });
