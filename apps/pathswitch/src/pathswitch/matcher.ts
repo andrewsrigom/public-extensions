@@ -7,6 +7,11 @@ export type RedirectCycle = {
   urls: string[];
 };
 
+export type RedirectPreview = {
+  destinationUrl: string;
+  sourcePattern: string;
+};
+
 export function getRedirectForUrl(url: string, settings: PathSwitchSettings): RedirectMatch | null {
   if (!settings.enabled) return null;
 
@@ -106,6 +111,46 @@ export function normalizeDestinationUrl(destinationUrl: string): string | null {
   } catch (_error) {
     return null;
   }
+}
+
+export function getSourcePatternFromUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (url.username || url.password) return "";
+
+    const safePattern = `${url.origin}${url.pathname}`;
+    return url.search || url.hash ? `${safePattern}*` : safePattern;
+  } catch (_error) {
+    return "";
+  }
+}
+
+export function isValidSourcePattern(sourcePattern: string): boolean {
+  const pattern = sourcePattern.trim();
+  if (!pattern || /\s/.test(pattern)) return false;
+
+  try {
+    const example = pattern.replaceAll("*", "pathswitch-example");
+    const url = new URL(SCHEME_PATTERN.test(pattern) ? example : `https://${example}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    if (!url.hostname || url.username || url.password) return false;
+
+    return matchesSourcePattern(pattern, url.href);
+  } catch (_error) {
+    return false;
+  }
+}
+
+export function getRedirectPreview(sourcePattern: string, destinationUrl: string): RedirectPreview | null {
+  const normalizedSource = sourcePattern.trim();
+  const normalizedDestination = normalizeDestinationUrl(destinationUrl);
+  if (!isValidSourcePattern(normalizedSource) || !normalizedDestination) return null;
+
+  return {
+    destinationUrl: normalizedDestination,
+    sourcePattern: normalizedSource
+  };
 }
 
 export function getSourcePatternExamples(sourcePattern: string): string[] {

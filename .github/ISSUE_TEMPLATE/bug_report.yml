@@ -14,11 +14,11 @@ body:
       label: Affected component
       options:
         - Watched Filter
-        - Product Filter
+        - Hide Unwanted Products
         - Quick Notes
         - Time Zone Helper
         - Site Reset
-        - Pathswitch
+        - PathSwitch
         - Shared UI
         - Shared UI Tokens
     validations:

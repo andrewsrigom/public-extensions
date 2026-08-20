@@ -51,6 +51,7 @@ const preservedFiles = [
   ".editorconfig",
   ".gitattributes",
   ".nvmrc",
+  "AGENTS.md",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
@@ -66,13 +67,16 @@ const preservedFiles = [
   "docs/chrome-web-store-publishing.md",
   ...licenseOverridePaths,
   "docs/third-party-licenses.md",
-  "docs/public/OPEN_SOURCE_READINESS.md",
+  "docs/public/RELEASE_CHECKLIST.md",
+  "scripts/check-public-release-manifests.mjs",
   "scripts/check-public-release-licenses.mjs",
   "scripts/check-public-boundary.mjs",
   "scripts/export-public-workspace.mjs",
   "scripts/export-public-workspace.test.mjs",
   "scripts/generate-public-license-notices.mjs",
+  "scripts/smoke-public-extensions.mjs",
   "docs/public/LICENSE",
+  "docs/public/TRADEMARKS.md",
   "docs/public/README.md",
   "docs/public/package.json",
   "docs/public/pnpm-workspace.yaml",
@@ -81,15 +85,16 @@ const preservedFiles = [
   "docs/public/ci.yml"
 ];
 
-const rootTemplateMappings = [
+export const ROOT_TEMPLATE_MAPPINGS = [
   ["docs/public/LICENSE", "LICENSE"],
+  ["docs/public/TRADEMARKS.md", "TRADEMARKS.md"],
   ["docs/public/README.md", "README.md"],
   ["docs/public/package.json", "package.json"],
   ["docs/public/pnpm-workspace.yaml", "pnpm-workspace.yaml"],
   ["docs/public/.gitignore", ".gitignore"],
   ["docs/public/.prettierignore", ".prettierignore"],
   ["docs/public/ci.yml", ".github/workflows/ci.yml"],
-  ["docs/public/OPEN_SOURCE_READINESS.md", "docs/open-source-readiness.md"]
+  ["docs/public/RELEASE_CHECKLIST.md", "docs/release-checklist.md"]
 ];
 
 const skippedDirectoryNames = new Set([
@@ -198,23 +203,34 @@ function usage() {
   ].join("\n");
 }
 
-function parseArguments(arguments_) {
+export function parseExportArguments(arguments_) {
   const positional = [];
   let skipInstall = false;
+  let optionsTerminated = false;
 
   for (const argument of arguments_) {
-    if (argument === "--") {
+    if (!optionsTerminated && argument === "--") {
+      optionsTerminated = true;
       continue;
     }
-    if (argument === "--help") {
+    if (!optionsTerminated && argument === "--help") {
+      if (arguments_.length !== 1) {
+        throw new ExportError(`--help cannot be combined with other arguments.\n\n${usage()}`, 2);
+      }
       return { help: true, skipInstall: false };
     }
-    if (argument === "--skip-install") {
+    if (!optionsTerminated && argument === "--skip-install") {
+      if (skipInstall) {
+        throw new ExportError(`--skip-install may only be provided once.\n\n${usage()}`, 2);
+      }
       skipInstall = true;
       continue;
     }
-    if (argument.startsWith("-")) {
+    if (!optionsTerminated && argument.startsWith("-")) {
       throw new ExportError(`Unknown option: ${argument}\n\n${usage()}`, 2);
+    }
+    if (!argument) {
+      throw new ExportError(`The destination must not be empty.\n\n${usage()}`, 2);
     }
     positional.push(argument);
   }
@@ -615,7 +631,7 @@ function createCopyPlan() {
   for (const file of preservedFiles) {
     addFile(file, file);
   }
-  for (const [source, target] of rootTemplateMappings) {
+  for (const [source, target] of ROOT_TEMPLATE_MAPPINGS) {
     addFile(source, target);
   }
 
@@ -752,7 +768,7 @@ function discardStagingDirectory(stagingDirectory, destination) {
 }
 
 function main() {
-  const options = parseArguments(process.argv.slice(2));
+  const options = parseExportArguments(process.argv.slice(2));
   if (options.help) {
     console.log(usage());
     return;

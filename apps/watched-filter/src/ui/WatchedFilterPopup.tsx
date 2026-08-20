@@ -15,7 +15,7 @@ import {
   type ThemeSelectorLabels,
   type LanguageSelectorOption
 } from "@browser-extensions/ui";
-import { PanelTopOpen, RefreshCw } from "lucide-react";
+import { ChevronDown, PanelTopOpen, RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { browser } from "wxt/browser";
@@ -75,7 +75,14 @@ const SUPPORTED_HOST_PATTERNS = [
   "iq.com"
 ];
 
-const SWITCHES = [
+type SettingsSwitch = {
+  descriptionKey: Parameters<typeof t>[0];
+  key: SettingSwitchKey;
+  titleKey: Parameters<typeof t>[0];
+  tone?: "default" | "neutral" | "success" | "warning";
+};
+
+const CORE_SWITCHES = [
   {
     descriptionKey: "enabledDescription",
     key: "enabled",
@@ -102,7 +109,10 @@ const SWITCHES = [
     key: "hideInProgress",
     tone: "warning",
     titleKey: "hideInProgressTitle"
-  },
+  }
+] satisfies SettingsSwitch[];
+
+const ADVANCED_SWITCHES = [
   {
     descriptionKey: "hidePaidContentDescription",
     key: "hidePaidContent",
@@ -121,12 +131,7 @@ const SWITCHES = [
     tone: "neutral",
     titleKey: "hideChannelContentTitle"
   }
-] satisfies Array<{
-  descriptionKey: Parameters<typeof t>[0];
-  key: SettingSwitchKey;
-  titleKey: Parameters<typeof t>[0];
-  tone?: "default" | "neutral" | "success" | "warning";
-}>;
+] satisfies SettingsSwitch[];
 
 export function WatchedFilterPopup(): ReactElement {
   const [settings, setSettings] = useState<ExtensionSettings>(() => normalizeSettings());
@@ -167,6 +172,8 @@ export function WatchedFilterPopup(): ReactElement {
   }, [settings.language]);
 
   async function updateSettings(partialSettings: Partial<ExtensionSettings>): Promise<void> {
+    if (!isReady) return;
+
     const nextSettings = normalizeSettings({
       ...settings,
       ...partialSettings
@@ -275,7 +282,7 @@ export function WatchedFilterPopup(): ReactElement {
 
       <Section title={t("mainSettingsTitle", settings.language)}>
         <Card className="divide-y divide-[var(--extension-border)] overflow-hidden">
-          {SWITCHES.map((item) => (
+          {CORE_SWITCHES.map((item) => (
             <SettingToggle
               checked={settings[item.key]}
               description={t(item.descriptionKey, settings.language)}
@@ -290,6 +297,35 @@ export function WatchedFilterPopup(): ReactElement {
           ))}
         </Card>
       </Section>
+
+      <Card className="overflow-hidden">
+        <details className="group">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-bold text-[var(--extension-text)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--extension-focus)] [&::-webkit-details-marker]:hidden">
+            <span>{t("advancedSettingsTitle", settings.language)}</span>
+            <ChevronDown
+              aria-hidden="true"
+              className="shrink-0 text-[var(--extension-muted)] transition-transform group-open:rotate-180"
+              size={17}
+              strokeWidth={2.4}
+            />
+          </summary>
+          <div className="divide-y divide-[var(--extension-border)] border-t border-[var(--extension-border)]">
+            {ADVANCED_SWITCHES.map((item) => (
+              <SettingToggle
+                checked={settings[item.key]}
+                description={t(item.descriptionKey, settings.language)}
+                disabled={!isReady}
+                key={item.key}
+                label={t(item.titleKey, settings.language)}
+                onCheckedChange={(checked) => {
+                  void updateSettings({ [item.key]: checked }).catch(() => undefined);
+                }}
+                tone={item.tone}
+              />
+            ))}
+          </div>
+        </details>
+      </Card>
 
       <Card className="grid gap-3 p-3">
         <SliderField

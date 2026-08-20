@@ -10,14 +10,18 @@ const publicApps = ["watched-filter", "product-filter", "quick-notes", "time-zon
 const canonicalLicensePath = existsSync(join(repositoryRoot, "LICENSE"))
   ? join(repositoryRoot, "LICENSE")
   : join(repositoryRoot, "docs/public/LICENSE");
+const canonicalTrademarkPath = existsSync(join(repositoryRoot, "TRADEMARKS.md"))
+  ? join(repositoryRoot, "TRADEMARKS.md")
+  : join(repositoryRoot, "docs/public/TRADEMARKS.md");
 
 function main() {
   const expectedLicense = readFileSync(canonicalLicensePath);
+  const expectedTrademarkPolicy = readFileSync(canonicalTrademarkPath);
   const failures = [];
 
   for (const app of publicApps) {
     try {
-      checkApplicationRelease(app, expectedLicense);
+      checkApplicationRelease(app, expectedLicense, expectedTrademarkPolicy);
     } catch (error) {
       failures.push(`${app}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -31,11 +35,13 @@ function main() {
     for (const failure of failures) console.error(`- ${failure}`);
     process.exitCode = 1;
   } else {
-    console.log(`PASS: LICENSE is present and byte-identical in all ${publicApps.length} builds and Chrome ZIPs.`);
+    console.log(
+      `PASS: LICENSE and TRADEMARKS.md are present and byte-identical in all ${publicApps.length} builds and Chrome ZIPs.`
+    );
   }
 }
 
-function checkApplicationRelease(app, license) {
+function checkApplicationRelease(app, license, trademarkPolicy) {
   const applicationRoot = join(repositoryRoot, "apps", app);
   const manifest = JSON.parse(readFileSync(join(applicationRoot, "package.json"), "utf8"));
   if (manifest.name !== app || typeof manifest.version !== "string" || !/^[0-9A-Za-z.+-]+$/.test(manifest.version)) {
@@ -44,13 +50,23 @@ function checkApplicationRelease(app, license) {
 
   const publicLicensePath = join(applicationRoot, "public", "LICENSE");
   assertLicenseBytes(readFileSync(publicLicensePath), license, "public/LICENSE");
+  const publicTrademarkPath = join(applicationRoot, "public", "TRADEMARKS.md");
+  assertLicenseBytes(readFileSync(publicTrademarkPath), trademarkPolicy, "public/TRADEMARKS.md");
 
   const buildLicensePath = join(applicationRoot, ".output", "chrome-mv3", "LICENSE");
   assertLicenseBytes(readFileSync(buildLicensePath), license, ".output/chrome-mv3/LICENSE");
+  const buildTrademarkPath = join(applicationRoot, ".output", "chrome-mv3", "TRADEMARKS.md");
+  assertLicenseBytes(readFileSync(buildTrademarkPath), trademarkPolicy, ".output/chrome-mv3/TRADEMARKS.md");
 
   const zipPath = join(applicationRoot, ".output", `${manifest.name}-${manifest.version}-chrome.zip`);
   const zipLicense = readZipEntry(readFileSync(zipPath), "LICENSE");
   assertLicenseBytes(zipLicense, license, `${manifest.name}-${manifest.version}-chrome.zip!/LICENSE`);
+  const zipTrademarkPolicy = readZipEntry(readFileSync(zipPath), "TRADEMARKS.md");
+  assertLicenseBytes(
+    zipTrademarkPolicy,
+    trademarkPolicy,
+    `${manifest.name}-${manifest.version}-chrome.zip!/TRADEMARKS.md`
+  );
 }
 
 function assertLicenseBytes(actual, expected, location) {

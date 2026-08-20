@@ -3,7 +3,6 @@ import { BlockNoteView, type Theme } from "@blocknote/mantine";
 import "@blocknote/mantine/style.css";
 import {
   AppIcon,
-  Button,
   DropdownMenu,
   DropdownMenuConfirmItem,
   DropdownMenuItem,
@@ -18,7 +17,10 @@ import {
 import { useCreateBlockNote } from "@blocknote/react";
 import {
   Archive,
+  ChevronDown,
   Copy,
+  Globe2,
+  Link2,
   MoreHorizontal,
   PanelTopOpen,
   Pin,
@@ -29,7 +31,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import type { FocusEvent, ReactElement } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 import {
   createPageContext,
@@ -42,6 +44,7 @@ import {
   setNotePinned,
   updateNoteBlocks,
   type NoteBlock,
+  type NoteScope,
   type NoteScopeFilter,
   type NoteVisibilityFilter,
   type PageContext,
@@ -52,7 +55,7 @@ import { useNotePersistence } from "../notes/use-note-persistence";
 import { getNoteMessages, resolveNoteLanguage, type NoteLanguage, type NoteMessages } from "./i18n";
 import { loadNoteLanguage, saveNoteLanguage, SETTINGS_STORAGE_KEY } from "./preferences";
 
-const FILTERS = [{ value: "global" }, { value: "site" }] satisfies {
+const FILTERS = [{ value: "all" }, { value: "site" }] satisfies {
   value: NoteScopeFilter;
 }[];
 
@@ -142,6 +145,7 @@ interface QuickNotesAppProps {
 }
 
 export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: QuickNotesAppProps): ReactElement {
+  const contextRequestIdRef = useRef(0);
   const [context, setContext] = useState<PageContext | null>(null);
   const [scopeFilter, setScopeFilter] = useState<NoteScopeFilter>(defaultFilter);
   const [visibilityFilter, setVisibilityFilter] = useState<NoteVisibilityFilter>("active");
@@ -163,6 +167,7 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
   });
   useEffect(() => {
     let mounted = true;
+    const contextRequestId = ++contextRequestIdRef.current;
 
     void Promise.all([
       requestNotes(),
@@ -172,7 +177,9 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
       .then(([storedNotes, pageContext, storedLanguage]) => {
         if (!mounted) return;
         replaceFromStorage(storedNotes);
-        setContext(pageContext);
+        if (contextRequestIdRef.current === contextRequestId) {
+          setContext(pageContext);
+        }
         if (storedLanguage) {
           setLanguage(storedLanguage);
         }
@@ -189,9 +196,17 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
 
   useEffect(() => {
     if (!trackActivePage) return undefined;
+    let mounted = true;
 
     const refreshContext = (): void => {
-      void getActivePageContext().then(setContext);
+      const contextRequestId = ++contextRequestIdRef.current;
+      void getActivePageContext()
+        .then((pageContext) => {
+          if (mounted && contextRequestIdRef.current === contextRequestId) {
+            setContext(pageContext);
+          }
+        })
+        .catch(() => undefined);
     };
     const handleTabUpdated = (_tabId: number, changeInfo: { title?: string; url?: string }): void => {
       if (!changeInfo.url && !changeInfo.title) return;
@@ -202,6 +217,7 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
     browser.tabs.onUpdated.addListener(handleTabUpdated);
 
     return () => {
+      mounted = false;
       browser.tabs.onActivated.removeListener(refreshContext);
       browser.tabs.onUpdated.removeListener(handleTabUpdated);
     };
@@ -242,11 +258,13 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
   const pinnedNotes = visibleNotes.filter((note) => note.pinned);
   const regularNotes = visibleNotes.filter((note) => !note.pinned);
 
-  function createNote(): void {
-    const note = createQuickNote({ context });
+  function createNote(scope: NoteScope): void {
+    const note = createQuickNote({ context, scope });
 
     createDraft(note);
     setFocusedNoteId(note.id);
+    setScopeFilter(note.scope === "site" ? "site" : "all");
+    setVisibilityFilter("active");
     setStatus(note.siteKey ? messages.tagged(note.siteKey) : messages.globalNote);
   }
 
@@ -340,10 +358,7 @@ export function QuickNotesApp({ defaultFilter, trackActivePage, variant }: Quick
           </div>
         </div>
         <div className="header-actions">
-          <Button className="quick-notes-new-button" type="button" onClick={createNote}>
-            <Plus aria-hidden="true" size={15} strokeWidth={2.4} />
-            {messages.newNote}
-          </Button>
+          <NewNoteMenu context={context} messages={messages} onCreate={createNote} />
           <AppMenu
             language={language}
             messages={messages}
@@ -404,6 +419,48 @@ interface FilterTabsProps {
   messages: NoteMessages;
   selected: NoteScopeFilter;
   onSelect: (filter: NoteScopeFilter) => void;
+}
+
+function NewNoteMenu({
+  context,
+  messages,
+  onCreate
+}: {
+  context: PageContext | null;
+  messages: NoteMessages;
+  onCreate: (scope: NoteScope) => void;
+}): ReactElement {
+  const siteKey = context?.siteKey;
+
+  return (
+    <DropdownMenu
+      aria-label={messages.newNote}
+      className="quick-notes-new-menu"
+      panelClassName="quick-notes-new-menu-panel"
+      summaryClassName="quick-notes-new-button"
+      trigger={
+        <>
+          <Plus aria-hidden="true" size={15} strokeWidth={2.4} />
+          <span>{messages.newNote}</span>
+          <ChevronDown aria-hidden="true" size={14} strokeWidth={2.4} />
+        </>
+      }
+    >
+      <DropdownMenuItem
+        icon={<Globe2 aria-hidden="true" size={15} strokeWidth={2.3} />}
+        onClick={() => onCreate("global")}
+      >
+        {messages.globalNote}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={!siteKey}
+        icon={<Link2 aria-hidden="true" size={15} strokeWidth={2.3} />}
+        onClick={() => onCreate("site")}
+      >
+        {siteKey ? messages.siteNote(siteKey) : messages.thisSite}
+      </DropdownMenuItem>
+    </DropdownMenu>
+  );
 }
 
 function AppMenu({
@@ -488,7 +545,7 @@ function FilterTabs({ context, messages, selected, onSelect }: FilterTabsProps):
 }
 
 function getScopeFilterLabel(filter: NoteScopeFilter, messages: NoteMessages): string {
-  return filter === "site" ? messages.thisSite : messages.global;
+  return filter === "site" ? messages.thisSite : messages.all;
 }
 
 function NotesLayout({

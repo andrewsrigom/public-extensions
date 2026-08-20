@@ -1,7 +1,8 @@
 # Contributing
 
-Thank you for considering a contribution. This repository is a pnpm workspace for focused, least-privilege browser
-extensions. Changes should keep product behavior isolated and make the smallest reasonable addition to the codebase.
+Thank you for considering a contribution. This repository brings together focused browser extensions, and contributions
+that improve them here are welcome. Changes should keep product behavior isolated and make the smallest reasonable
+addition to the codebase.
 
 ## Public project scope
 
@@ -72,8 +73,12 @@ Reviewers will look for:
 - no credentials, personal data, generated output, or private-product references; and
 - a clean public-boundary check.
 
-By contributing, you agree that your contribution is licensed under the repository's MIT License and that you have the
-right to submit it.
+This project is source-available to support upstream collaboration. It is not intended as a base for publishing renamed,
+rebranded, paid, or free competing extensions. See [LICENSE](./LICENSE) and [TRADEMARKS.md](./TRADEMARKS.md) before
+contributing or distributing any part of the project.
+
+By contributing, you agree that your contribution is licensed under the repository's PolyForm Shield License 1.0.0 and
+that you have the right to submit it.
 
 ## Security reports
 

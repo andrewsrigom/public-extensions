@@ -1,6 +1,7 @@
 import {
   getCookieRemovalUrl,
   getDefaultSelectedCategories,
+  getSupportedResetCategories,
   getSupportedSelectedCategories,
   normalizeHostname,
   parseActiveSite
@@ -41,6 +42,12 @@ describe("site reset model", () => {
 
   it("keeps unsupported categories out of actionable selections", () => {
     expect(getDefaultSelectedCategories()).toEqual(["cookies", "cache"]);
+    expect(getSupportedResetCategories().map(({ id }) => id)).toEqual([
+      "cookies",
+      "cache",
+      "localStorage",
+      "offlineData"
+    ]);
     expect(getSupportedSelectedCategories(["cookies", "permissions", "siteSettings"])).toEqual(["cookies"]);
   });
 });

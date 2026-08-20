@@ -19,9 +19,11 @@ export function isSettingsImportFileSizeAllowed(fileSize: number): boolean {
 export type ProductFilterSettingsMutation =
   | { kind: "update-preferences"; preferences: Partial<StoredPreferences> }
   | {
+      addedProductIds: string[];
       addedTerms: string[];
       kind: "save-options-draft";
       preferences: Partial<StoredPreferences>;
+      removedProductIds: string[];
       removedTerms: string[];
     }
   | { kind: "set-global-terms"; terms: string[] }
@@ -112,8 +114,12 @@ export function isSettingsMutationMessage(value: unknown): value is ProductFilte
     case "save-options-draft":
       return (
         Boolean(mutation.preferences && typeof mutation.preferences === "object") &&
+        Array.isArray(mutation.addedProductIds) &&
+        mutation.addedProductIds.every((productId) => typeof productId === "string") &&
         Array.isArray(mutation.addedTerms) &&
         mutation.addedTerms.every((term) => typeof term === "string") &&
+        Array.isArray(mutation.removedProductIds) &&
+        mutation.removedProductIds.every((productId) => typeof productId === "string") &&
         Array.isArray(mutation.removedTerms) &&
         mutation.removedTerms.every((term) => typeof term === "string")
       );
@@ -216,6 +222,10 @@ function reduceSettingsMutation(
       return normalizeSettings({
         ...current,
         ...mutation.preferences,
+        blockedProductIds: [
+          ...current.blockedProductIds.filter((productId) => !mutation.removedProductIds.includes(productId)),
+          ...mutation.addedProductIds
+        ],
         blockedTerms: [
           ...current.blockedTerms.filter((term) => !mutation.removedTerms.includes(term)),
           ...mutation.addedTerms

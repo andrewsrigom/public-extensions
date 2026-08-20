@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a focused improvement to a public extension or shared package.
+description: Propose a focused improvement or a useful new browser extension.
 title: "[Feature]: "
 labels:
   - enhancement
@@ -10,11 +10,12 @@ body:
       label: Target component
       options:
         - Watched Filter
-        - Product Filter
+        - Hide Unwanted Products
         - Quick Notes
         - Time Zone Helper
         - Site Reset
-        - Pathswitch
+        - PathSwitch
+        - New extension idea
         - Shared UI
         - Shared UI Tokens
     validations:
@@ -30,7 +31,7 @@ body:
     id: proposal
     attributes:
       label: Proposed outcome
-      description: Explain the behavior you would like and why it fits this component.
+      description: Explain the behavior you would like and why it fits this component or belongs in a focused extension.
     validations:
       required: true
   - type: textarea

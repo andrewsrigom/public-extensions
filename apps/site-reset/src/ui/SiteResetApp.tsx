@@ -14,14 +14,14 @@ import {
 } from "@browser-extensions/ui";
 import { Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 
 import { getActiveSite, resetSite, SiteResetError } from "../reset/browser-api";
 import {
   getDefaultSelectedCategories,
+  getSupportedResetCategories,
   getSupportedSelectedCategories,
-  RESET_CATEGORIES,
   type ActiveSite,
   type ResetCategoryId
 } from "../reset/model";
@@ -37,8 +37,10 @@ import {
 type ResetStatus = "idle" | "loading" | "cleaning" | "done" | "error";
 
 const LANGUAGE_STORAGE_KEY = "site-reset:language";
+const SUPPORTED_RESET_CATEGORIES = getSupportedResetCategories();
 
 export function SiteResetApp(): ReactElement {
+  const languageRevisionRef = useRef(0);
   const [site, setSite] = useState<ActiveSite | null>(null);
   const [selected, setSelected] = useState<ResetCategoryId[]>(() => getDefaultSelectedCategories());
   const [status, setStatus] = useState<ResetStatus>("loading");
@@ -56,9 +58,10 @@ export function SiteResetApp(): ReactElement {
 
   useEffect(() => {
     let mounted = true;
+    const languageRevision = languageRevisionRef.current;
 
     void loadLanguagePreference().then((storedLanguage) => {
-      if (mounted) {
+      if (mounted && languageRevisionRef.current === languageRevision) {
         setLanguage(storedLanguage);
       }
     });
@@ -89,6 +92,7 @@ export function SiteResetApp(): ReactElement {
   }, [messages.noSite]);
 
   function changeLanguage(nextLanguage: SiteResetLanguage): void {
+    languageRevisionRef.current += 1;
     setLanguage(nextLanguage);
     void saveLanguagePreference(nextLanguage);
   }
@@ -100,7 +104,7 @@ export function SiteResetApp(): ReactElement {
   }
 
   function selectAll(): void {
-    setSelected(RESET_CATEGORIES.filter((category) => category.supported).map(({ id }) => id));
+    setSelected(SUPPORTED_RESET_CATEGORIES.map(({ id }) => id));
   }
 
   async function cleanSelected(): Promise<void> {
@@ -110,7 +114,7 @@ export function SiteResetApp(): ReactElement {
     setError("");
 
     try {
-      await resetSite(site, selected);
+      await resetSite(site, selectedSupported);
       setStatus("done");
     } catch (unknownError) {
       setStatus("error");
@@ -154,13 +158,12 @@ export function SiteResetApp(): ReactElement {
         title={messages.whatToClear}
       >
         <Card className="divide-y divide-[var(--extension-border)] overflow-hidden">
-          {RESET_CATEGORIES.map((category) => (
+          {SUPPORTED_RESET_CATEGORIES.map((category) => (
             <ResetCategoryRow
               key={category.id}
               checked={selected.includes(category.id)}
               categoryId={category.id}
               messages={messages}
-              supported={category.supported}
               onCheckedChange={(checked) => {
                 toggleCategory(category.id, checked);
               }}
@@ -239,21 +242,18 @@ function ResetCategoryRow({
   categoryId,
   checked,
   messages,
-  supported,
   onCheckedChange
 }: {
   categoryId: ResetCategoryId;
   checked: boolean;
   messages: SiteResetMessages;
-  supported: boolean;
   onCheckedChange: (checked: boolean) => void;
 }): ReactElement {
   return (
     <CheckboxField
       checked={checked}
       className="rounded-none border-0 bg-transparent"
-      description={getCategoryDescriptionText(categoryId, messages, supported)}
-      disabled={!supported}
+      description={getCategoryDescription(categoryId, messages)}
       label={getCategoryTitle(categoryId, messages)}
       onCheckedChange={onCheckedChange}
     />
@@ -298,15 +298,6 @@ function getCategoryDescription(categoryId: ResetCategoryId, messages: SiteReset
     permissions: messages.permissionsDescription,
     siteSettings: messages.siteSettingsDescription
   }[categoryId];
-}
-
-function getCategoryDescriptionText(
-  categoryId: ResetCategoryId,
-  messages: SiteResetMessages,
-  supported: boolean
-): string {
-  const description = getCategoryDescription(categoryId, messages);
-  return supported ? description : `${description} - ${messages.unavailable}`;
 }
 
 function getThemeLabels(messages: SiteResetMessages): ThemeSelectorLabels {

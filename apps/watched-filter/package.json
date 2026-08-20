@@ -10,7 +10,7 @@
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
     "quality": "pnpm typecheck && pnpm test:run && pnpm build",
-    "release:check": "pnpm quality && pnpm zip",
+    "release:check": "pnpm typecheck && pnpm test:run && pnpm zip",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
